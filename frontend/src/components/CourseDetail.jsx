@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { calculateOverallGrade, calculateCategoryGrade } from '../utils/mathEngine';
+import { calculateOverallGrade, calculateCategoryGrade, getLetterGrade } from '../utils/mathEngine';
 import FinalCalculator from './FinalCalculator';
 
 export default function CourseDetail({ course, onBack }) {
   const [categories, setCategories] = useState([]);
-  const [isEditingWeights, setIsEditingWeights] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   React.useEffect(() => {
@@ -18,43 +17,54 @@ export default function CourseDetail({ course, onBack }) {
       return;
     }
 
-    const savedWeightsJson = localStorage.getItem(`grade_calc_course_${course.id}_weights`);
-    const savedWeights = savedWeightsJson ? JSON.parse(savedWeightsJson) : {};
-
-    const overrideJson = localStorage.getItem(`grade_calc_course_${course.id}_overrides`);
-    const overrides = overrideJson ? JSON.parse(overrideJson) : {};
+    // Polluted legacy local storage blocks removed: We now run 100% via auto-sorter
 
     const categoriesMap = {};
+    const assignmentToCategory = {};
 
-    // Seed configured categories directly from Infinite Campus API if available
-    if (course.rawCategories && course.rawCategories.length > 0) {
+    // 1. Fully Auto-Sort Categories and Assignments via Native Details API
+    if (course.detailData && course.detailData.data && course.detailData.data.details) {
+      course.detailData.data.details.forEach(task => {
+        if (task.categories) {
+          task.categories.forEach(cat => {
+            // We use native name as fallback ID if groupID doesn't exist
+            const catId = String(cat.groupID || cat.name); 
+            
+            if (!categoriesMap[catId] && parseFloat(cat.weight) >= 0) {
+              categoriesMap[catId] = {
+                id: catId,
+                name: cat.name || "Unknown Category",
+                weight: parseFloat(cat.weight) / 100, // IC sends 65.0 for 65%
+                assignments: []
+              };
+            }
+
+            // Map every assignment's native IDs to this Category
+            if (cat.assignments) {
+              cat.assignments.forEach(a => {
+                if (a.objectSectionID) assignmentToCategory[String(a.objectSectionID)] = catId;
+                if (a.groupActivityID) assignmentToCategory[String(a.groupActivityID)] = catId;
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // Fallback: If details fetch failed, grab from general rawCategories
+    if (Object.keys(categoriesMap).length === 0 && course.rawCategories) {
       course.rawCategories.forEach(cat => {
         const catId = String(cat.categoryID);
-        // IC sends weights as integers/percentages (e.g. 65.0). Convert to our internal decimal layout (0.65).
-        const decimalWeight = cat.weight ? (parseFloat(cat.weight) / 100) : 0;
         categoriesMap[catId] = {
           id: catId,
           name: cat.name || "Unknown Category",
-          weight: decimalWeight,
+          weight: cat.weight ? (parseFloat(cat.weight) / 100) : 0,
           assignments: []
         };
       });
     }
 
-    // Override with savedWeights if the user manually configured or tweaked them previously
-    Object.keys(savedWeights).forEach(catId => {
-      if (categoriesMap[catId]) {
-        categoriesMap[catId].name = savedWeights[catId].name;
-        categoriesMap[catId].weight = parseFloat(savedWeights[catId].weight) || 0;
-      } else {
-        categoriesMap[catId] = {
-          id: catId,
-          name: savedWeights[catId].name,
-          weight: parseFloat(savedWeights[catId].weight) || 0,
-          assignments: []
-        };
-      }
-    });
+
 
     // Default category for uncategorized assignments
     if (!categoriesMap["cat_default"]) {
@@ -68,7 +78,14 @@ export default function CourseDetail({ course, onBack }) {
         const totalVal = parseFloat(a.totalPoints) || 100;
 
         const assignmentId = (a.objectSectionID || 'a') + "_" + i;
-        const activeCatId = overrides[assignmentId] || "cat_default";
+        
+        // Assign to matched native category, else fallback
+        let activeCatId = "cat_default";
+        if (a.objectSectionID && assignmentToCategory[String(a.objectSectionID)]) {
+           activeCatId = assignmentToCategory[String(a.objectSectionID)];
+        } else if (a.groupActivityID && assignmentToCategory[String(a.groupActivityID)]) {
+           activeCatId = assignmentToCategory[String(a.groupActivityID)];
+        }
 
         if (!categoriesMap[activeCatId]) {
           categoriesMap[activeCatId] = { id: activeCatId, name: "Custom", weight: 0, assignments: [] };
@@ -104,8 +121,27 @@ export default function CourseDetail({ course, onBack }) {
     return isNaN(val) ? String(g) : val.toFixed(2) + "%";
   };
 
-  // Always show IC's synced grade as primary
-  const displayGrade = formatICGrade(course.grade);
+  const [editingId, setEditingId] = useState(null);
+  const [editingScore, setEditingScore] = useState('');
+
+  const hasOverrides = categories.some(cat => cat.assignments.some(a => a.isFake || a.isEdited));
+  const activeGradeValue = hasOverrides ? computedGrade : parseFloat(course.grade);
+  const displayGrade = hasOverrides ? computedGrade.toFixed(2) + "%" : formatICGrade(course.grade);
+  const displayLetter = hasOverrides ? getLetterGrade(activeGradeValue) : (course.letterGrade || getLetterGrade(parseFloat(course.grade)));
+
+  const handleEditScore = (catId, assignmentId, newScore) => {
+    setCategories(prev => prev.map(cat => {
+      if (cat.id === catId) {
+        return {
+          ...cat,
+          assignments: cat.assignments.map(a => 
+            a.id === assignmentId ? { ...a, score: newScore, isEdited: true } : a
+          )
+        };
+      }
+      return cat;
+    }));
+  };
 
   const handleAddFake = (e) => {
     e.preventDefault();
@@ -135,33 +171,6 @@ export default function CourseDetail({ course, onBack }) {
     }));
   };
 
-  const handleSaveWeights = (e) => {
-    e.preventDefault();
-    const weightsObj = {};
-    categories.forEach(c => {
-      weightsObj[c.id] = { name: c.name, weight: parseFloat(c.weight) || 0 };
-    });
-    localStorage.setItem(`grade_calc_course_${course.id}_weights`, JSON.stringify(weightsObj));
-    setIsEditingWeights(false);
-  };
-
-  const catNameChange = (id, newName) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c));
-  };
-  const catWeightChange = (id, newWeight) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, weight: newWeight } : c));
-  };
-
-  const handleMoveAssignment = (assignmentId, newCatId) => {
-    const overrideJson = localStorage.getItem(`grade_calc_course_${course.id}_overrides`);
-    const overrides = overrideJson ? JSON.parse(overrideJson) : {};
-    overrides[assignmentId] = newCatId;
-    localStorage.setItem(`grade_calc_course_${course.id}_overrides`, JSON.stringify(overrides));
-
-    // Trigger re-render by updating dummy state, which will cause useEffect to re-run and rebuild categories
-    setRefreshTrigger(prev => prev + 1);
-  };
-
   return (
     <div className="course-detail-container animate-slide-up">
       <button onClick={onBack} className="btn-secondary" style={{ marginBottom: '1.5rem' }}>← Back to Dashboard</button>
@@ -174,8 +183,14 @@ export default function CourseDetail({ course, onBack }) {
           </div>
           <div style={{ textAlign: 'right' }}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Current Grade</span><br />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <span style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{displayGrade}</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', justifyContent: 'flex-end' }}>
+              <span className={activeGradeValue >= 90 ? 'grade-A' : activeGradeValue >= 80 ? 'grade-B' : activeGradeValue >= 70 ? 'grade-C' : activeGradeValue >= 60 ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+                {displayLetter}
+              </span>
+              <span style={{ fontSize: '1.8rem', fontWeight: '300', color: 'var(--text-secondary)', lineHeight: '1' }}>·</span>
+              <span className={activeGradeValue >= 90 ? 'grade-A' : activeGradeValue >= 80 ? 'grade-B' : activeGradeValue >= 70 ? 'grade-C' : activeGradeValue >= 60 ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+                {displayGrade}
+              </span>
               {/* Mock Trend Indicator */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--success-color)', display: 'flex', alignItems: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
@@ -203,39 +218,16 @@ export default function CourseDetail({ course, onBack }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h2>Assignments</h2>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <button onClick={() => setIsEditingWeights(!isEditingWeights)} className="btn-secondary" style={{ width: 'auto' }}>
-            {isEditingWeights ? "Cancel Edit" : "Configure Weights"}
-          </button>
+          {hasOverrides && (
+            <button onClick={() => { setRefreshTrigger(prev => prev + 1); setShowWhatIf(false); }} className="btn-secondary" style={{ width: 'auto', color: 'var(--danger-color)', borderColor: 'var(--danger-color)', padding: '0.5rem 1rem' }}>
+              Reset Simulator
+            </button>
+          )}
           <button onClick={() => setShowWhatIf(!showWhatIf)} className="btn-primary" style={{ width: 'auto' }}>
             + Add What-If
           </button>
         </div>
       </div>
-
-      {isEditingWeights && (
-        <div className="glass-card animate-slide-up" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--primary-color)' }}>
-          <h3 style={{ marginBottom: '1rem' }}>Configure Category Weights</h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>We detected the boundaries for your assignments, but your district hides the category names and weights. You can define them here once and we will save them forever!</p>
-          <form onSubmit={handleSaveWeights}>
-            {categories.map(cat => (
-              <div key={cat.id} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
-                <div style={{ flex: '2' }}>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Category Name</label>
-                  <input type="text" className="input-field" value={cat.name} onChange={(e) => catNameChange(cat.id, e.target.value)} required />
-                </div>
-                <div style={{ flex: '1' }}>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Weight (Decimal, e.g. 0.8)</label>
-                  <input type="number" step="0.01" max="1" min="0" className="input-field" value={cat.weight} onChange={(e) => catWeightChange(cat.id, e.target.value)} required />
-                </div>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
-              <button type="button" onClick={() => setCategories([...categories, { id: 'cat_' + Date.now(), name: 'New Category', weight: 0, assignments: [] }])} className="btn-secondary" style={{ width: 'auto' }}>+ Add Category</button>
-              <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Save Categories</button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {showWhatIf && (
         <div className="glass-card animate-slide-up" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--primary-color)' }}>
@@ -278,18 +270,45 @@ export default function CourseDetail({ course, onBack }) {
                   {a.isFake && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: 'var(--warning-color)', border: '1px solid var(--warning-color)', borderRadius: '4px', padding: '2px 6px' }}>What-If</span>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-
-                  {!a.isFake && (
-                    <select
-                      value={cat.id}
-                      onChange={(e) => handleMoveAssignment(a.id, e.target.value)}
-                      style={{ padding: '2px 6px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                    >
-                      {categories.map(c => <option key={c.id} value={c.id}>Move to {c.name}</option>)}
-                    </select>
+                  {editingId === a.id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        autoFocus
+                        onBlur={() => {
+                           const val = parseFloat(editingScore);
+                           if (!isNaN(val)) handleEditScore(cat.id, a.id, val);
+                           setEditingId(null);
+                        }}
+                        onKeyDown={(e) => {
+                           if (e.key === 'Enter') {
+                              const val = parseFloat(editingScore);
+                              if (!isNaN(val)) handleEditScore(cat.id, a.id, val);
+                              setEditingId(null);
+                           } else if (e.key === 'Escape') {
+                              setEditingId(null);
+                           }
+                        }}
+                        className="input-field" 
+                        style={{ width: '60px', padding: '0.2rem 0.5rem', fontSize: '1rem', textAlign: 'right', margin: 0 }} 
+                        value={editingScore} 
+                        onChange={(e) => setEditingScore(e.target.value)} 
+                      />
+                      <span style={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>/ {a.total_points}</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span 
+                        onClick={() => { setEditingId(a.id); setEditingScore(a.score); }}
+                        style={{ fontFamily: 'monospace', fontSize: '1.1rem', cursor: 'pointer', borderBottom: '1px dashed var(--text-secondary)', paddingBottom: '2px' }}
+                        title="Click to edit score"
+                      >
+                        {a.score} / {a.total_points}
+                      </span>
+                      {a.isEdited && <span style={{ fontSize: '0.75rem', color: 'var(--success-color)', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Edited</span>}
+                    </div>
                   )}
-
-                  <span style={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>{a.score} / {a.total_points}</span>
                   <span style={{ minWidth: '60px', textAlign: 'right', fontWeight: 'bold' }}>{((a.score / Math.max(a.total_points, 0.001)) * 100).toFixed(1)}%</span>
                   {a.isFake && (
                     <button onClick={() => handleRemoveFake(cat.id, a.id)} className="btn-secondary" style={{ color: 'var(--danger-color)', padding: '4px 8px', border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>
@@ -303,7 +322,7 @@ export default function CourseDetail({ course, onBack }) {
           </div>
         </div>
       ))}
-      <FinalCalculator currentCourseGrade={isSetup ? parseFloat(computedGrade.toFixed(2)) : parseFloat(course.grade) || 100} />
+      <FinalCalculator currentCourseGrade={activeGradeValue ? parseFloat(activeGradeValue.toFixed(2)) : 0} categories={categories} />
     </div>
   );
 }

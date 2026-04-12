@@ -1,28 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { calculateFinalExamGrade } from '../utils/mathEngine';
+import { calculateAdvancedFinalExamGrade } from '../utils/mathEngine';
 
-export default function FinalCalculator({ currentCourseGrade }) {
-  const [currentGrade, setCurrentGrade] = useState(currentCourseGrade ? currentCourseGrade.toFixed(2) : '');
+export default function FinalCalculator({ currentCourseGrade, categories = [] }) {
+  const [desiredGrade, setDesiredGrade] = useState('');
+  const [targetCategory, setTargetCategory] = useState('');
+  const [finalPoints, setFinalPoints] = useState('');
+  const [result, setResult] = useState(null);
 
   useEffect(() => {
-    if (currentCourseGrade !== undefined) {
-      setCurrentGrade(currentCourseGrade.toFixed(2));
+    if (categories.length > 0 && !targetCategory) {
+      setTargetCategory(categories[0].id);
     }
-  }, [currentCourseGrade]);
-  const [desiredGrade, setDesiredGrade] = useState('');
-  const [finalWeight, setFinalWeight] = useState('');
-
-  const [result, setResult] = useState(null);
+  }, [categories]);
 
   const handleCalculate = (e) => {
     e.preventDefault();
-    const needed = calculateFinalExamGrade(
-      parseFloat(currentGrade),
+    if (!targetCategory) return;
+    const needed = calculateAdvancedFinalExamGrade(
+      categories,
+      targetCategory,
       parseFloat(desiredGrade),
-      parseFloat(finalWeight)
+      finalPoints ? parseFloat(finalPoints) : null
     );
     setResult(needed);
   };
+
+  const selectedCat = categories.find(c => c.id === targetCategory);
+  // Only ask for points if the category already has assignments, otherwise point weigh doesn't matter (it dictates 100% of the category)
+  const needsPointsInput = selectedCat && selectedCat.assignments && selectedCat.assignments.filter(a => a.score !== null && a.score !== undefined).length > 0;
 
   return (
     <div className="glass-card animate-slide-up" style={{ padding: '2rem', marginTop: '2rem' }}>
@@ -32,17 +37,25 @@ export default function FinalCalculator({ currentCourseGrade }) {
 
       <form onSubmit={handleCalculate} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1.5rem', alignItems: 'flex-end' }}>
         <div>
-          <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Current Grade (%)</label>
-          <input type="number" step="0.01" className="input-field" value={currentGrade} onChange={(e) => setCurrentGrade(e.target.value)} required />
+          <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Current Grade</label>
+          <div className="input-field" style={{ background: 'transparent', border: 'none', paddingLeft: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>{currentCourseGrade}%</div>
         </div>
         <div>
           <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Desired Grade (%)</label>
           <input type="number" step="0.01" className="input-field" value={desiredGrade} onChange={(e) => setDesiredGrade(e.target.value)} required />
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Final Exam Weight (%)</label>
-          <input type="number" step="0.01" className="input-field" value={finalWeight} onChange={(e) => setFinalWeight(e.target.value)} placeholder="e.g. 20" required />
+          <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Final Exam Category</label>
+          <select className="input-field" value={targetCategory} onChange={(e) => setTargetCategory(e.target.value)} required>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name} ({(parseFloat(c.weight) * 100).toFixed(0)}%)</option>)}
+          </select>
         </div>
+        {needsPointsInput && (
+          <div>
+            <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Total Points</label>
+            <input type="number" step="0.1" className="input-field" value={finalPoints} onChange={(e) => setFinalPoints(e.target.value)} placeholder="e.g. 100" required />
+          </div>
+        )}
         <button type="submit" className="btn-primary">Calculate</button>
       </form >
 

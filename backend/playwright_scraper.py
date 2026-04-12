@@ -130,15 +130,14 @@ async def fetch_grades_via_playwright():
                                 print(f"[Playwright] Error fetching categories for {sec_id}: {e}")
                                 
                             # Try to fetch detailed mapping payload
-                            for base in ["api", "resources"]:
-                                d_url = f"https://srvusd.infinitecampus.org/campus/{base}/portal/grades/detail/{person_id}?sectionID={sec_id}"
-                                try:
-                                    d_resp = await page.request.get(d_url, headers=headers)
-                                    if d_resp.status == 200:
-                                        d_json = await d_resp.json()
-                                        detail_data.append({"sectionID": sec_id, "url": d_url, "data": d_json})
-                                except Exception as e:
-                                    pass
+                            d_url = f"https://srvusd.infinitecampus.org/campus/resources/portal/grades/detail/{sec_id}?showAllTerms=false&classroomSectionID={sec_id}"
+                            try:
+                                d_resp = await page.request.get(d_url, headers=headers)
+                                if d_resp.status == 200:
+                                    d_json = await d_resp.json()
+                                    detail_data.append({"sectionID": sec_id, "url": d_url, "data": d_json})
+                            except Exception as e:
+                                pass
 
                     
                     break

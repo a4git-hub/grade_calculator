@@ -35,6 +35,7 @@ export default function Login({ onLogin }) {
                     })
                     .map(c => {
                         let grade = "N/A";
+                        let officialLetter = null;
                         const targetID = c.sectionID; // STRICTLY sectionID, not rosterID!
                         let activeTermID = null;
                         let activeTermName = "Term S2";
@@ -78,11 +79,17 @@ export default function Login({ onLogin }) {
 
                             if (bestTask) {
                                 grade = bestTask.progressPercent != null ? bestTask.progressPercent : bestTask.percent;
+                                officialLetter = bestTask.progressScore != null ? bestTask.progressScore : bestTask.score;
                                 activeTermID = bestTask.termID;
                                 // Display the semester name, not the individual term
                                 const termNum = parseInt((bestTask.termName || '').replace('T', ''));
                                 activeTermName = termNum >= 3 ? "S2" : "S1";
                             }
+                        }
+
+                        // Clean up official letter (sometimes IC sends it as ' A ' or similar)
+                        if (officialLetter && typeof officialLetter === 'string') {
+                            officialLetter = officialLetter.trim();
                         }
 
                         // Filter assignments for SEMESTER 2 (T3 + T4) since that's the current semester
@@ -99,9 +106,11 @@ export default function Login({ onLogin }) {
                             id: targetID,
                             name: c.courseName || c.name,
                             grade: grade,
+                            letterGrade: officialLetter,
                             term: activeTermName,
                             assignments: activeAssignments,
-                            rawCategories: icStudent.categories ? icStudent.categories.filter(cat => cat.sectionID === targetID) : []
+                            rawCategories: icStudent.categories ? icStudent.categories.filter(cat => cat.sectionID === targetID) : [],
+                            detailData: icStudent.detail_data ? icStudent.detail_data.find(d => String(d.sectionID) === String(targetID)) : null
                         };
                     });
                 mappedData = {

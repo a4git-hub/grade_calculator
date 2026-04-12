@@ -6,14 +6,19 @@ import FinalCalculator from './components/FinalCalculator';
 import './index.css';
 
 function App() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => {
+    const saved = localStorage.getItem('ic_cached_student_data');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [selectedCourse, setSelectedCourse] = useState(null);
 
   const handleLogin = (fetchedData) => {
+    localStorage.setItem('ic_cached_student_data', JSON.stringify(fetchedData));
     setData(fetchedData);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('ic_cached_student_data');
     setData(null);
     setSelectedCourse(null);
   };

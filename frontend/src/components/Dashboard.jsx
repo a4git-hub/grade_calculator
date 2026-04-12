@@ -1,27 +1,35 @@
 import React from 'react';
+import { getLetterGrade } from '../utils/mathEngine';
 
 export default function Dashboard({ data, onSelectCourse, onLogout }) {
     if (!data || !data.courses) return null;
 
-    // Calculate mock GPA
+    // Calculate realistic GPA
     const calculateGPA = (courses, weighted = false) => {
         if (!courses || courses.length === 0) return 0.0;
         let totalPoints = 0;
+        let validCourses = 0;
+        
         courses.forEach(c => {
             const score = parseFloat(c.grade);
+            if (isNaN(score)) return; // Skip N/A courses
+            
+            validCourses++;
             let points = 0;
-            if (score >= 90) points = 4.0;
-            else if (score >= 80) points = 3.0;
-            else if (score >= 70) points = 2.0;
-            else if (score >= 60) points = 1.0;
+            if (score >= 89.5) points = 4.0;
+            else if (score >= 79.5) points = 3.0;
+            else if (score >= 69.5) points = 2.0;
+            else if (score >= 59.5) points = 1.0;
 
-            // Add weight for AP/Honors classes
-            if (weighted && (c.name.includes('AP') || c.name.includes('Honors'))) {
+            // Add weight for AP/Honors/Accelerated classes
+            if (weighted && (c.name.includes('AP') || c.name.includes('Honors') || c.name.includes('Accel'))) {
                 points += 1.0;
             }
             totalPoints += points;
         });
-        return (totalPoints / courses.length).toFixed(2);
+        
+        if (validCourses === 0) return 0.0;
+        return (totalPoints / validCourses).toFixed(2);
     };
 
     const unweightedGPA = calculateGPA(data.courses, false);
@@ -33,11 +41,30 @@ export default function Dashboard({ data, onSelectCourse, onLogout }) {
     if (averageGrade >= 90) motivationMessage = "You're doing amazing, keep it up! 🚀";
     else if (averageGrade >= 80) motivationMessage = "Solid work, maintaining a strong B average! 💪";
 
+    // Build Dynamic Needs Attention List
+    const needsAttentionItems = [];
+    data.courses.forEach(course => {
+        if (!course.assignments) return;
+        course.assignments.forEach(a => {
+            if (a.missing || (a.score === null && a.late)) {
+                needsAttentionItems.push({ course: course.name, name: a.assignmentName || 'Assignment', score: 0, total: a.totalPoints || '-', type: 'Missing' });
+            } else if (a.score !== null && !isNaN(parseFloat(a.score))) {
+                const s = parseFloat(a.score);
+                const t = parseFloat(a.totalPoints) || 100;
+                if (t > 0 && (s / t) <= 0.70) {
+                    needsAttentionItems.push({ course: course.name, name: a.assignmentName || 'Assignment', score: s, total: t, type: 'Low Score' });
+                }
+            }
+        });
+    });
+    // Sort so most recent issues tend to surface (assuming array order)
+    needsAttentionItems.sort((a,b) => b.type.localeCompare(a.type));
+
     return (
         <div className="dashboard-container animate-slide-up">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
-                    <h1 style={{ color: 'var(--primary-color)' }}>Welcome back, {data.student_name}!</h1>
+                    <h1 style={{ color: 'var(--primary-color)' }}>Welcome back, {(data.student_name || '').split(' (')[0]}!</h1>
                     <p style={{ color: 'var(--text-secondary)' }}>{motivationMessage}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
@@ -69,9 +96,17 @@ export default function Dashboard({ data, onSelectCourse, onLogout }) {
                             <h3 style={{ fontSize: '1.2rem', margin: 0 }}>{course.name}</h3>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto' }}>
                                 <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Term {course.term}</span>
-                                <span className={gradeClass} style={{ fontSize: '2rem', fontWeight: 'bold' }}>
-                                    {course.grade}%
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                    <span className={gradeClass} style={{ fontSize: '2.2rem', fontWeight: 'bold', lineHeight: '1' }}>
+                                        {course.letterGrade || getLetterGrade(score)}
+                                    </span>
+                                    <span style={{ fontSize: '2.2rem', fontWeight: 'bold', lineHeight: '1', color: 'var(--text-secondary)' }}>
+                                        -
+                                    </span>
+                                    <span className={gradeClass} style={{ fontSize: '2.2rem', fontWeight: 'bold', lineHeight: '1' }}>
+                                        {isNaN(score) ? 'N/A' : `${score}%`}
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Progress Bar Visual */}
@@ -91,25 +126,26 @@ export default function Dashboard({ data, onSelectCourse, onLogout }) {
             </div >
 
             <h2 style={{ marginTop: '3rem', marginBottom: '1rem' }}>Needs Attention</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-                {/* Mock Needs Attention Data - in a real app this would map over filtered data.assignments */}
-                {[
-                    { course: 'AP Calculus BC', name: 'Chapter 4 Quiz', score: 6.5, total: 10, type: 'Low Score' },
-                    { course: 'Physics Honors', name: 'Lab Report 3', score: 0, total: 20, type: 'Missing' },
-                    { course: 'English Literature', name: 'Reading Log', score: 5, total: 10, type: 'Low Score' }
-                ].map((item, idx) => (
-                    <div key={idx} className="glass-card" style={{ padding: '1rem', borderLeft: `4px solid var(--${item.type === 'Missing' ? 'danger' : 'warning'}-color)` }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>{item.course}</div>
-                        <div style={{ fontWeight: '500', marginBottom: '0.5rem' }}>{item.name}</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', padding: '2px 6px', borderRadius: '4px', background: `rgba(${item.type === 'Missing' ? '239, 68, 68' : '245, 158, 11'}, 0.1)`, color: `var(--${item.type === 'Missing' ? 'danger' : 'warning'}-color)` }}>
-                                {item.type}
-                            </span>
-                            <span style={{ fontFamily: 'monospace' }}>{item.score} / {item.total}</span>
+            {needsAttentionItems.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+                    You have no missing or failing assignments. Great job! 🎉
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {needsAttentionItems.slice(0, 6).map((item, idx) => (
+                        <div key={idx} className="glass-card" style={{ padding: '1rem', borderLeft: `4px solid var(--${item.type === 'Missing' ? 'danger' : 'warning'}-color)` }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>{item.course}</div>
+                            <div style={{ fontWeight: '500', marginBottom: '0.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.8rem', padding: '2px 6px', borderRadius: '4px', background: `rgba(${item.type === 'Missing' ? '239, 68, 68' : '245, 158, 11'}, 0.1)`, color: `var(--${item.type === 'Missing' ? 'danger' : 'warning'}-color)` }}>
+                                    {item.type}
+                                </span>
+                                <span style={{ fontFamily: 'monospace' }}>{item.score} / {item.total}</span>
+                            </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
