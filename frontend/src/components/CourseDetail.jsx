@@ -124,7 +124,7 @@ export default function CourseDetail({ course, onBack }) {
   const [editingId, setEditingId] = useState(null);
   const [editingScore, setEditingScore] = useState('');
 
-  const hasOverrides = categories.some(cat => cat.assignments.some(a => a.isFake || a.isEdited));
+  const hasOverrides = categories.some(cat => cat.assignments.some(a => a.isFake || a.isEdited || a.isDropped));
   const activeGradeValue = hasOverrides ? computedGrade : parseFloat(course.grade);
   const displayGrade = hasOverrides ? computedGrade.toFixed(2) + "%" : formatICGrade(course.grade);
   const displayLetter = hasOverrides ? getLetterGrade(activeGradeValue) : (course.letterGrade || getLetterGrade(parseFloat(course.grade)));
@@ -135,7 +135,21 @@ export default function CourseDetail({ course, onBack }) {
         return {
           ...cat,
           assignments: cat.assignments.map(a => 
-            a.id === assignmentId ? { ...a, score: newScore, isEdited: true } : a
+            a.id === assignmentId ? { ...a, score: newScore, isEdited: true, isDropped: false } : a
+          )
+        };
+      }
+      return cat;
+    }));
+  };
+
+  const handleToggleDrop = (catId, assignmentId) => {
+    setCategories(prev => prev.map(cat => {
+      if (cat.id === catId) {
+        return {
+          ...cat,
+          assignments: cat.assignments.map(a => 
+            a.id === assignmentId ? { ...a, isDropped: !a.isDropped } : a
           )
         };
       }
@@ -176,14 +190,14 @@ export default function CourseDetail({ course, onBack }) {
       <button onClick={onBack} className="btn-secondary" style={{ marginBottom: '1.5rem' }}>← Back to Dashboard</button>
 
       <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <h1 style={{ color: 'var(--primary-color)', margin: 0 }}>{course.name}</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Term {course.term}</p>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ textAlign: 'right', flex: '1 1 100%' }}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Current Grade</span><br />
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <span className={activeGradeValue >= 90 ? 'grade-A' : activeGradeValue >= 80 ? 'grade-B' : activeGradeValue >= 70 ? 'grade-C' : activeGradeValue >= 60 ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
                 {displayLetter}
               </span>
@@ -215,7 +229,7 @@ export default function CourseDetail({ course, onBack }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
         <h2>Assignments</h2>
         <div style={{ display: 'flex', gap: '1rem' }}>
           {hasOverrides && (
@@ -264,9 +278,9 @@ export default function CourseDetail({ course, onBack }) {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {cat.assignments.map(a => (
-              <div key={a.id} className="glass-card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: a.isFake ? '1px dashed var(--warning-color)' : '' }}>
+              <div key={a.id} className="glass-card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: a.isFake ? '1px dashed var(--warning-color)' : '', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                  <span style={{ fontWeight: '500' }}>{a.name}</span>
+                  <span style={{ fontWeight: '500', textDecoration: a.isDropped ? 'line-through' : 'none', opacity: a.isDropped ? 0.5 : 1 }}>{a.name}</span>
                   {a.isFake && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: 'var(--warning-color)', border: '1px solid var(--warning-color)', borderRadius: '4px', padding: '2px 6px' }}>What-If</span>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -309,7 +323,16 @@ export default function CourseDetail({ course, onBack }) {
                       {a.isEdited && <span style={{ fontSize: '0.75rem', color: 'var(--success-color)', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Edited</span>}
                     </div>
                   )}
-                  <span style={{ minWidth: '60px', textAlign: 'right', fontWeight: 'bold' }}>{((a.score / Math.max(a.total_points, 0.001)) * 100).toFixed(1)}%</span>
+                  <span style={{ minWidth: '60px', textAlign: 'right', fontWeight: 'bold', textDecoration: a.isDropped ? 'line-through' : 'none', opacity: a.isDropped ? 0.5 : 1 }}>{((a.score / Math.max(a.total_points, 0.001)) * 100).toFixed(1)}%</span>
+                  
+                  <button 
+                    onClick={() => handleToggleDrop(cat.id, a.id)} 
+                    className="btn-secondary" 
+                    style={{ padding: '4px 8px', fontSize: '0.8rem', border: 'none', background: 'transparent', cursor: 'pointer', color: a.isDropped ? 'var(--warning-color)' : 'var(--text-secondary)' }}
+                  >
+                    {a.isDropped ? 'Keep' : 'Drop'}
+                  </button>
+
                   {a.isFake && (
                     <button onClick={() => handleRemoveFake(cat.id, a.id)} className="btn-secondary" style={{ color: 'var(--danger-color)', padding: '4px 8px', border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>
                   )}

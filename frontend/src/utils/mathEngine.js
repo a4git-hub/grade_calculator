@@ -1,5 +1,5 @@
 export function calculateCategoryGrade(assignments) {
-    const graded = assignments.filter((a) => a.score !== null && a.score !== undefined);
+    const graded = assignments.filter((a) => !a.isDropped && a.score !== null && a.score !== undefined);
     if (graded.length === 0) return 100.0;
 
     const totalEarned = graded.reduce((sum, a) => sum + parseFloat(a.score), 0);
@@ -17,7 +17,7 @@ export function calculateOverallGrade(categories) {
         const weight = parseFloat(cat.weight || 0);
 
         // Check if there are any valid assignments (score != null) or fake What-If assignments
-        const validAssignments = (cat.assignments || []).filter(a => (a.score !== null && a.score !== undefined) || a.isFake);
+        const validAssignments = (cat.assignments || []).filter(a => !a.isDropped && ((a.score !== null && a.score !== undefined) || a.isFake));
         if (validAssignments.length === 0) continue; // SKIP THIS CATEGORY if empty (e.g. un-taken Final Exam)
 
         const grade = calculateCategoryGrade(cat.assignments || []);
@@ -45,11 +45,11 @@ export function calculateAdvancedFinalExamGrade(categories, targetCategoryId, de
         if (cat.id === targetCategoryId) {
             targetCatExists = true;
             targetCatWeight = weight;
-            const valid = (cat.assignments || []).filter(a => (a.score !== null && a.score !== undefined) || a.isFake);
+            const valid = (cat.assignments || []).filter(a => !a.isDropped && ((a.score !== null && a.score !== undefined) || a.isFake));
             E_c = valid.reduce((sum, a) => sum + parseFloat(a.score), 0);
             T_c = valid.reduce((sum, a) => sum + parseFloat(a.total_points), 0);
         } else {
-            const valid = (cat.assignments || []).filter(a => (a.score !== null && a.score !== undefined) || a.isFake);
+            const valid = (cat.assignments || []).filter(a => !a.isDropped && ((a.score !== null && a.score !== undefined) || a.isFake));
             if (valid.length > 0) {
                 const grade = calculateCategoryGrade(cat.assignments || []);
                 S_other += grade * weight;

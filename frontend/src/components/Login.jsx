@@ -1,32 +1,233 @@
-import React, { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import React, { useState, useEffect } from 'react';
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, autoSync = false }) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [showSyncForm, setShowSyncForm] = useState(false);
 
+    useEffect(() => {
+        if (autoSync && !isLoading) {
+            setShowSyncForm(true);
+            handleSubmit({ preventDefault: () => {} });
+        }
+    }, [autoSync]);
+
+    const handleDemoLogin = () => {
+        onLogin({
+            student_name: "Apple Reviewer (Demo)",
+            courses: [
+                { id: "1", name: "AP Computer Science A", grade: "96.5", term: "S2", assignments: [], rawCategories: [] },
+                { id: "2", name: "AP Calculus BC", grade: "88.2", term: "S2", assignments: [], rawCategories: [] },
+                { id: "3", name: "Physics Honors", grade: "92.0", term: "S2", assignments: [], rawCategories: [] },
+                { id: "4", name: "English Literature", grade: "94.1", term: "S2", assignments: [], rawCategories: [] }
+            ]
+        });
+    };
+
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         setIsLoading(true);
         setError('');
 
         try {
-            console.log("Launching Playwright interceptor on backend...");
-            const res = await fetch('http://localhost:8001/api/grades', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+            const isNative = Capacitor.isNativePlatform();
+            let data = null;
 
-            if (!res.ok) {
-                throw new Error("Invalid credentials or server error");
+            if (isNative) {
+                console.log("Launching Native Web Scraper Bridge...");
+                
+                // Ensure Cordova plugin is successfully registered by Capacitor
+                if (!window.cordova || !window.cordova.InAppBrowser) {
+                     throw new Error("Native Scraper Plugin missing. Please rebuild Xcode project after syncing.");
+                }
+
+                data = await new Promise((resolve, reject) => {
+                    const browser = window.cordova.InAppBrowser.open('https://srvusd.infinitecampus.org/campus/portal/students/sanRamon.jsp', '_blank', 'location=no,toolbar=yes');
+
+                    browser.addEventListener('loadstop', (event) => {
+                        console.log("Native WebView Reached:", event.url);
+
+                        // Enforce single-line script injection to avoid Cordova JSON bridge parser failures (INVALID).
+                        // Also force all SAML <form> targets to _self so Classlink Azure OIDC doesn't hit a blocked popup!
+                        browser.executeScript({ 
+                            code: "document.querySelectorAll('form').forEach(function(f){f.target='_self'}); document.querySelectorAll('a').forEach(function(a){a.target='_self'}); window.open=function(u){window.location.href=u;return null;}; true;" 
+                        });
+
+                        if (event.url && event.url.toLowerCase().includes('infinitecampus.org')) {
+                            // Aggressive Multi-Heuristic Scraper targeting the Infinite Campus personID
+                            const scraperCode = `
+                            if (!window.ic_running) {
+                                window.ic_running = true;
+                                localStorage.removeItem('ic_intercepted_grades');
+                                
+                                // Heuristic 4: Background Network Monkey Patch
+                                window.ic_intercepted_pId = null;
+                                var oldOpen = XMLHttpRequest.prototype.open;
+                                XMLHttpRequest.prototype.open = function(method, url) {
+                                    if(url && typeof url === 'string') {
+                                        var m = url.match(/personID=(\\d+)/i);
+                                        if(m && m[1]) window.ic_intercepted_pId = m[1];
+                                    }
+                                    oldOpen.apply(this, arguments);
+                                };
+                                var oldFetch = window.fetch;
+                                window.fetch = async function() {
+                                    if(arguments[0] && typeof arguments[0] === 'string') {
+                                        var m = arguments[0].match(/personID=(\\d+)/i);
+                                        if(m && m[1]) window.ic_intercepted_pId = m[1];
+                                    }
+                                    return oldFetch.apply(this, arguments);
+                                };
+                                
+                                let attempts = 0;
+                                var timer = setInterval(async function() {
+                                    attempts++;
+                                    let pId = window.ic_intercepted_pId;
+                                    
+                                    try {
+                                        // Heuristic 1: Raw HTML String Regex
+                                        if (!pId) {
+                                            var htmlStr = document.documentElement.innerHTML;
+                                            var match = htmlStr.match(/personID['"\\\\]*\\s*[:=]\\s*['"\\\\]*(\\d+)/i) || 
+                                                        htmlStr.match(/personID=["'](\\d+)["']/i);
+                                                        
+                                            if (match && match[1]) pId = match[1];
+                                        } 
+                                        
+                                        // Heuristic 2: Hidden DOM Links
+                                        if (!pId) {
+                                            var links = document.querySelectorAll('a[href*="personID="]');
+                                            if (links.length > 0) {
+                                                var hrefMatch = links[0].href.match(/personID=(\\d+)/i);
+                                                if (hrefMatch && hrefMatch[1]) pId = hrefMatch[1];
+                                            }
+                                        }
+                                        
+                                        // Heuristic 3: Blind API fetch to student listing
+                                        if (!pId) {
+                                            try {
+                                                var bUrl = 'https://srvusd.infinitecampus.org';
+                                                var sRes = await oldFetch(bUrl + '/campus/resources/portal/students', {headers: {'Accept':'application/json'}});
+                                                if(sRes.ok) {
+                                                    var sData = await sRes.json();
+                                                    if(Array.isArray(sData) && sData.length > 0 && sData[0].personID) {
+                                                        pId = sData[0].personID;
+                                                    }
+                                                }
+                                            } catch(e) {}
+                                        }
+
+                                        if (pId) {
+                                            clearInterval(timer);
+                                            var hdrs = { 'Accept': 'application/json' };
+                                            var bUrl = 'https://srvusd.infinitecampus.org';
+                                            
+                                            // Execute Extraction Payload!
+                                            var dynamicName = 'Student';
+                                            try {
+                                                var sRes2 = await oldFetch(bUrl + '/campus/resources/portal/students', { headers: hdrs });
+                                                if (sRes2.ok) {
+                                                    var sData2 = await sRes2.json();
+                                                    var me = sData2.find(s => String(s.personID) === String(pId));
+                                                    if (me && me.firstName) dynamicName = me.firstName;
+                                                    else if (sData2.length > 0 && sData2[0].firstName) dynamicName = sData2[0].firstName;
+                                                }
+                                            } catch(e) {}
+                                            
+                                            var rosterRes = await oldFetch(bUrl + '/campus/resources/portal/roster?&personID=' + pId, { headers: hdrs });
+                                            var roster = await rosterRes.json();
+                                            
+                                            var assignRes = await oldFetch(bUrl + '/campus/api/portal/assignment/listView?&personID=' + pId, { headers: hdrs });
+                                            var assign = await assignRes.json();
+                                            
+                                            var grades = [];
+                                            var gRes = await oldFetch(bUrl + '/campus/resources/portal/grades', { headers: hdrs });
+                                            if (gRes.ok) {
+                                                var gData = await gRes.json();
+                                                if (Array.isArray(gData) && gData.length > 0 && gData[0].courses) {
+                                                    grades = gData;
+                                                } else {
+                                                    var gRes2 = await oldFetch(bUrl + '/campus/api/portal/grades?personID=' + pId, { headers: hdrs });
+                                                    if (gRes2.ok) grades = await gRes2.json();
+                                                }
+                                            }
+                                            
+                                            var cats = [];
+                                            var dets = [];
+                                            for (var i = 0; i < roster.length; i++) {
+                                                var c = roster[i];
+                                                if (c.sectionID) {
+                                                    var cRes = await oldFetch(bUrl + '/campus/api/instruction/categories?sectionID=' + c.sectionID, { headers: hdrs });
+                                                    if (cRes.ok) {
+                                                        var cData = await cRes.json();
+                                                        if (Array.isArray(cData)) cats.push(...cData);
+                                                    }
+                                                    var dRes = await oldFetch(bUrl + '/campus/resources/portal/grades/detail/' + c.sectionID + '?showAllTerms=false&classroomSectionID=' + c.sectionID, { headers: hdrs });
+                                                    if (dRes.ok) dets.push({ sectionID: c.sectionID, data: await dRes.json() });
+                                                }
+                                            }
+                                            
+                                            var payload = { name: dynamicName, student_id: pId, courses: roster, assignments: assign || [], grades: grades || [], categories: cats, detail_data: dets };
+                                            localStorage.setItem('ic_intercepted_grades', JSON.stringify({ status: 'success', data: [payload] }));
+                                        } else if (attempts > 15) {
+                                            clearInterval(timer);
+                                            localStorage.setItem('ic_intercepted_grades', JSON.stringify({ status: 'error', message: 'Could not find Student ID in page source.' }));
+                                        }
+                                    } catch (err) {
+                                        clearInterval(timer);
+                                        localStorage.setItem('ic_intercepted_grades', JSON.stringify({ status: 'error', message: err.toString() }));
+                                    }
+                                }, 1000);
+                            }; true;`;
+                            // Minify line breaks just for the exec string
+                            browser.executeScript({ code: scraperCode.replace(/\\n/g, ' ') });
+                        }
+                    });
+
+                    // Outside of the load event, we check if the local polling was successful and resolved securely!
+                    const nativePollInterval = setInterval(() => {
+                        browser.executeScript({ code: "localStorage.getItem('ic_intercepted_grades');" }, (values) => {
+                            if (values && values.length > 0) {
+                                const rawStr = values[0];
+                                if (rawStr && rawStr !== "null") {
+                                    clearInterval(nativePollInterval);
+                                    browser.close();
+                                    try {
+                                        const parsed = JSON.parse(rawStr);
+                                        if (parsed.status === "error") reject(new Error(parsed.message));
+                                        else resolve(parsed);
+                                    } catch (e) {
+                                        reject(new Error("Failed to parse intercepted grade data"));
+                                    }
+                                }
+                            }
+                        });
+                    }, 500);
+
+                    browser.addEventListener('exit', () => {
+                        clearInterval(nativePollInterval);
+                        reject(new Error("Login window closed before sync completed."));
+                    });
+                });
+            } else {
+                console.log("Launching Playwright interceptor on backend...");
+                const res = await fetch('http://localhost:8001/api/grades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!res.ok) {
+                    throw new Error("Invalid credentials or server error");
+                }
+                data = await res.json();
             }
 
-            const data = await res.json();
             console.log("SUCCESS! IC RAW DATA:", data);
 
             // Attempt to parse the first student's courses from the raw IC format
             let mappedData = null;
-            if (data.status === "success" && data.data && data.data.length > 0) {
+            if (data && data.status === "success" && data.data && data.data.length > 0) {
                 const icStudent = data.data[0];
                 const mappedCourses = (icStudent.courses || [])
                     .filter(c => {
@@ -119,23 +320,13 @@ export default function Login({ onLogin }) {
                 };
             }
 
-            // Fallback to Mock Data if we couldn't parse any courses (so the UI doesn't crash while testing)
             if (!mappedData || !mappedData.courses) {
-                console.warn("Could not parse courses from IC data. Falling back to mock data for UI demo.");
-                mappedData = {
-                    student_name: "Aditya (Mock)",
-                    courses: [
-                        { id: "1", name: "AP Computer Science A", grade: "96.5", term: "S2" },
-                        { id: "2", name: "AP Calculus BC", grade: "88.2", term: "S2" },
-                        { id: "3", name: "Physics Honors", grade: "92.0", term: "S2" },
-                        { id: "4", name: "English Literature", grade: "94.1", term: "S2" }
-                    ]
-                };
+                throw new Error("Could not parse valid courses from raw data.");
             }
 
             onLogin(mappedData);
         } catch (err) {
-            setError('Failed to connect to Infinite Campus. Check your credentials.');
+            setError(err.message || 'Failed to connect to Infinite Campus. Check your credentials.');
         } finally {
             setIsLoading(false);
         }
@@ -163,13 +354,20 @@ export default function Login({ onLogin }) {
                 <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', color: 'var(--primary-color)' }}>Secure Browser Login</h2>
                 <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>Because your school uses ClassLink SSO, typing a password here won't work. We will securely open a browser window for you to log in visually, then automatically safely sync your data.</p>
 
-                {error && <div style={{ color: 'var(--danger-color)', marginBottom: '1rem', textAlign: 'center' }}>{error}</div>}
+                {error && <div style={{ color: 'var(--danger-color)', marginBottom: '1rem', textAlign: 'center', border: '1px solid var(--danger-color)', padding: '0.5rem', borderRadius: '4px' }}>{error}</div>}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', alignItems: 'center' }}>
                     <button onClick={handleSubmit} className="btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={isLoading}>
                         {isLoading ? 'Waiting for you to log in...' : 'Launch ClassLink Login Window'}
                     </button>
                     {isLoading && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Please check the newly opened browser window to log in. Once you see your grades, this page will instantly update.</p>}
+                    
+                    <p 
+                        onClick={handleDemoLogin} 
+                        style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textDecoration: 'underline', cursor: 'pointer', marginTop: '1rem' }}
+                    >
+                        App Reviewer? Use Demo Login
+                    </p>
                 </div>
             </div>
         </div>

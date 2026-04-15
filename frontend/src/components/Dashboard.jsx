@@ -1,7 +1,7 @@
 import React from 'react';
 import { getLetterGrade } from '../utils/mathEngine';
 
-export default function Dashboard({ data, onSelectCourse, onLogout }) {
+export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh }) {
     if (!data || !data.courses) return null;
 
     // Calculate realistic GPA
@@ -72,7 +72,12 @@ export default function Dashboard({ data, onSelectCourse, onLogout }) {
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>GPA (UW/W)</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{unweightedGPA} / <span style={{ color: 'var(--primary-color)' }}>{weightedGPA}</span></div>
                     </div>
-                    <button onClick={onLogout} className="btn-secondary">Sign Out</button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={onRefresh} className="btn-secondary" style={{ padding: '0.5rem' }} title="Refresh Grades">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        </button>
+                        <button onClick={onLogout} className="btn-secondary">Sign Out</button>
+                    </div>
                 </div>
             </div >
 

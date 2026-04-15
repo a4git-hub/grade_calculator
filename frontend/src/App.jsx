@@ -11,10 +11,12 @@ function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleLogin = (fetchedData) => {
     localStorage.setItem('ic_cached_student_data', JSON.stringify(fetchedData));
     setData(fetchedData);
+    setIsRefreshing(false);
   };
 
   const handleLogout = () => {
@@ -23,15 +25,20 @@ function App() {
     setSelectedCourse(null);
   };
 
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setData(null);
+  };
+
   return (
     <div className="app-container">
       {
         !data ? (
-          <Login onLogin={handleLogin} />
+          <Login onLogin={handleLogin} autoSync={isRefreshing} />
         ) : (
           <>
             {!selectedCourse ? (
-              <Dashboard data={data} onSelectCourse={setSelectedCourse} onLogout={handleLogout} />
+              <Dashboard data={data} onSelectCourse={setSelectedCourse} onLogout={handleLogout} onRefresh={handleRefresh} />
             ) : (
               <CourseDetail course={selectedCourse} onBack={() => setSelectedCourse(null)} />
             )}
