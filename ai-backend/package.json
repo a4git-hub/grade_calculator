@@ -1,0 +1,12 @@
+{
+  "name": "lumina-ai-backend",
+  "version": "1.0.0",
+  "description": "Serverless API for Lumina Grade Calculator AI",
+  "main": "api/chat.js",
+  "scripts": {
+    "start": "node api/chat.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.6.0"
+  }
+}
