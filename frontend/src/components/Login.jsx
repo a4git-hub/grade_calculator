@@ -229,7 +229,8 @@ export default function Login({ onLogin, autoSync = false }) {
             let mappedData = null;
             if (data && data.status === "success" && data.data && data.data.length > 0) {
                 const icStudent = data.data[0];
-                const mappedCourses = (icStudent.courses || [])
+                const safeCourses = Array.isArray(icStudent.courses) ? icStudent.courses : [];
+                const mappedCourses = safeCourses
                     .filter(c => {
                         const name = (c.courseName || c.name || "").toLowerCase();
                         return !name.includes("student support") && !name.includes("unscheduled");

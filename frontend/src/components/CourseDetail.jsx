@@ -75,7 +75,8 @@ export default function CourseDetail({ course, onBack }) {
       .filter(a => a.score != null && a.score !== "" && !isNaN(parseFloat(a.score)))
       .forEach((a, i) => {
         const scoreVal = parseFloat(a.score) || 0;
-        const totalVal = parseFloat(a.totalPoints) || 100;
+        let totalVal = parseFloat(a.totalPoints);
+        if (isNaN(totalVal)) totalVal = 100;
 
         const assignmentId = (a.objectSectionID || 'a') + "_" + i;
         

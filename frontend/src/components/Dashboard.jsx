@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { getLetterGrade } from '../utils/mathEngine';
+import AiAdvisor from './AiAdvisor';
 
 export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh }) {
+    const [showAi, setShowAi] = useState(false);
     if (!data || !data.courses) return null;
 
     // Calculate realistic GPA
@@ -150,6 +152,39 @@ export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh })
                         </div>
                     ))}
                 </div>
+            )}
+
+            {/* AI Advisor Floating Action Button */}
+            <button 
+                onClick={() => setShowAi(!showAi)}
+                style={{
+                   position: 'fixed',
+                   bottom: '20px',
+                   right: '20px',
+                   width: '60px',
+                   height: '60px',
+                   borderRadius: '50%',
+                   background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)',
+                   color: 'white',
+                   border: 'none',
+                   boxShadow: '0 4px 15px rgba(99, 102, 241, 0.5)',
+                   cursor: 'pointer',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   fontSize: '1.5rem',
+                   zIndex: 9998,
+                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                   transform: showAi ? 'scale(0.9)' : 'scale(1)'
+                }}
+                title="Ask Lumina AI"
+            >
+                ✨
+            </button>
+
+            {/* AI Advisor Modal */}
+            {showAi && (
+                <AiAdvisor courses={data.courses} onClose={() => setShowAi(false)} />
             )}
         </div>
     );
