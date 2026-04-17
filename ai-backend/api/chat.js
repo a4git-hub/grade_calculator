@@ -25,7 +25,7 @@ export default async function handler(req, res) {
         }
 
         // Initialize the super-fast Gemini model
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `
             You are Lumina, a highly intelligent and encouraging academic advisor AI built into a Grade Calculator iOS App. 
