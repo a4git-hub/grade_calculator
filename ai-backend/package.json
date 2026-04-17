@@ -7,6 +7,6 @@
     "start": "node api/chat.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.6.0"
+    "@google/generative-ai": "latest"
   }
 }
