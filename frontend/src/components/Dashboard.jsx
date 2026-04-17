@@ -63,6 +63,7 @@ export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh })
     needsAttentionItems.sort((a,b) => b.type.localeCompare(a.type));
 
     return (
+        <>
         <div className="dashboard-container animate-slide-up">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
@@ -154,38 +155,41 @@ export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh })
                 </div>
             )}
 
-            {/* AI Advisor Floating Action Button */}
-            <button 
-                onClick={() => setShowAi(!showAi)}
-                style={{
-                   position: 'fixed',
-                   bottom: '20px',
-                   right: '20px',
-                   width: '60px',
-                   height: '60px',
-                   borderRadius: '50%',
-                   background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)',
-                   color: 'white',
-                   border: 'none',
-                   boxShadow: '0 4px 15px rgba(99, 102, 241, 0.5)',
-                   cursor: 'pointer',
-                   display: 'flex',
-                   alignItems: 'center',
-                   justifyContent: 'center',
-                   fontSize: '1.5rem',
-                   zIndex: 9998,
-                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                   transform: showAi ? 'scale(0.9)' : 'scale(1)'
-                }}
-                title="Ask Lumina AI"
-            >
-                ✨
-            </button>
-
-            {/* AI Advisor Modal */}
-            {showAi && (
-                <AiAdvisor courses={data.courses} onClose={() => setShowAi(false)} />
-            )}
         </div>
+
+        {/* AI Advisor Floating Action Button — fixed to viewport, outside scroll container */}
+        <button 
+            onClick={() => setShowAi(!showAi)}
+            style={{
+               position: 'fixed',
+               bottom: '28px',
+               right: '24px',
+               width: '60px',
+               height: '60px',
+               borderRadius: '50%',
+               background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)',
+               color: 'white',
+               border: 'none',
+               boxShadow: '0 4px 20px rgba(99, 102, 241, 0.6)',
+               cursor: 'pointer',
+               display: 'flex',
+               alignItems: 'center',
+               justifyContent: 'center',
+               zIndex: 9998,
+               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+               transform: showAi ? 'scale(0.9)' : 'scale(1)'
+            }}
+            title="Ask Lumina AI"
+        >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L13.09 8.26L19 7L14.74 11.26L21 12L14.74 12.74L19 17L13.09 15.74L12 22L10.91 15.74L5 17L9.26 12.74L3 12L9.26 11.26L5 7L10.91 8.26L12 2Z"/>
+            </svg>
+        </button>
+
+        {/* AI Advisor Modal */}
+        {showAi && (
+            <AiAdvisor courses={data.courses} onClose={() => setShowAi(false)} />
+        )}
+        </>
     );
 }

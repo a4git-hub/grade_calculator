@@ -15,6 +15,25 @@ function App() {
 
   const handleLogin = (fetchedData) => {
     localStorage.setItem('ic_cached_student_data', JSON.stringify(fetchedData));
+    
+    // Save a grade history snapshot for the sparkline graph
+    const existing = JSON.parse(localStorage.getItem('ic_grade_history') || '[]');
+    const snapshot = {
+      timestamp: new Date().toISOString(),
+      grades: (fetchedData.courses || []).reduce((acc, c) => {
+        acc[c.id || c.name] = parseFloat(c.grade) || null;
+        return acc;
+      }, {})
+    };
+    // Keep max 30 snapshots, avoid duplicates within 1 hour
+    const lastSnap = existing[existing.length - 1];
+    const oneHourAgo = Date.now() - 3600000;
+    if (!lastSnap || new Date(lastSnap.timestamp).getTime() < oneHourAgo) {
+      existing.push(snapshot);
+      if (existing.length > 30) existing.shift();
+      localStorage.setItem('ic_grade_history', JSON.stringify(existing));
+    }
+
     setData(fetchedData);
     setIsRefreshing(false);
   };

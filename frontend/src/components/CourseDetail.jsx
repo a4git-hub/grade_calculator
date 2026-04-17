@@ -6,6 +6,17 @@ export default function CourseDetail({ course, onBack }) {
   const [categories, setCategories] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Load grade history for this course from localStorage
+  const [gradeHistory, setGradeHistory] = useState(() => {
+    try {
+      const all = JSON.parse(localStorage.getItem('ic_grade_history') || '[]');
+      const key = course.id || course.name;
+      return all
+        .filter(snap => snap.grades[key] != null)
+        .map(snap => ({ date: new Date(snap.timestamp), grade: snap.grades[key] }));
+    } catch { return []; }
+  });
+
   React.useEffect(() => {
     if (!course || !course.assignments || course.assignments.length === 0) {
       setCategories([{
@@ -206,14 +217,21 @@ export default function CourseDetail({ course, onBack }) {
               <span className={activeGradeValue >= 90 ? 'grade-A' : activeGradeValue >= 80 ? 'grade-B' : activeGradeValue >= 70 ? 'grade-C' : activeGradeValue >= 60 ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
                 {displayGrade}
               </span>
-              {/* Mock Trend Indicator */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--success-color)', display: 'flex', alignItems: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
-                  <span style={{ marginLeft: '4px' }}>+1.2%</span>
-                </span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>vs last week</span>
-              </div>
+              {/* Dynamic Last Updated indicator */}
+              {(() => {
+                const updated = course.lastUpdated || course.lastSync;
+                if (!updated) return null;
+                const diff = Math.round((Date.now() - new Date(updated).getTime()) / (1000 * 60 * 60 * 24));
+                const label = diff === 0 ? 'Today' : diff === 1 ? '1 day ago' : `${diff} days ago`;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      Updated {label}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
             {!isSetup && course.assignments && course.assignments.length > 0 ? (
               <div style={{ fontSize: '0.75rem', color: 'var(--warning-color)', marginTop: '4px' }}>
@@ -229,6 +247,47 @@ export default function CourseDetail({ course, onBack }) {
           </div>
         </div>
       </div>
+
+      {/* Sparkline Grade History Chart */}
+      {gradeHistory.length >= 2 && (() => {
+        const W = 340, H = 80, PAD = 12;
+        const vals = gradeHistory.map(p => p.grade);
+        const minV = Math.min(...vals) - 2;
+        const maxV = Math.max(...vals) + 2;
+        const toX = (i) => PAD + (i / (vals.length - 1)) * (W - PAD * 2);
+        const toY = (v) => H - PAD - ((v - minV) / (maxV - minV)) * (H - PAD * 2);
+        const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+        const areaPoints = `${PAD},${H - PAD} ` + vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ') + ` ${toX(vals.length - 1)},${H - PAD}`;
+        const latest = vals[vals.length - 1];
+        const prev = vals[vals.length - 2];
+        const trend = latest - prev;
+        const trendColor = trend >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
+        return (
+          <div className="glass-card" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Grade History</span>
+              <span style={{ fontSize: '0.85rem', color: trendColor, fontWeight: '600' }}>
+                {trend >= 0 ? '▲' : '▼'} {Math.abs(trend).toFixed(2)}% since last sync
+              </span>
+            </div>
+            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--primary-color)" stopOpacity="0.3"/>
+                  <stop offset="100%" stopColor="var(--primary-color)" stopOpacity="0"/>
+                </linearGradient>
+              </defs>
+              <polygon points={areaPoints} fill="url(#chartGrad)"/>
+              <polyline points={points} fill="none" stroke="var(--primary-color)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx={toX(vals.length - 1)} cy={toY(latest)} r="4" fill="var(--primary-color)"/>
+            </svg>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              <span>{gradeHistory[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span>Today</span>
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
         <h2>Assignments</h2>
