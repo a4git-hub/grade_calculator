@@ -24,8 +24,8 @@ export default async function handler(req, res) {
             return res.status(500).json({ reply: "Server error: Gemini API Key is missing from the environment variables." });
         }
 
-        // Initialize the super-fast Gemini Flash model
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Initialize the super-fast Gemini model
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
         const prompt = `
             You are Lumina, a highly intelligent and encouraging academic advisor AI built into a Grade Calculator iOS App. 
