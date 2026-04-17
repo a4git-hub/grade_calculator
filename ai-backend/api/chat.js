@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { student_data, user_message } = req.body;
+        const { student_data, user_message, history } = req.body;
 
         if (!process.env.GEMINI_API_KEY) {
             return res.status(500).json({ reply: "Server error: Gemini API Key is missing from the environment variables." });
@@ -27,17 +27,28 @@ export default async function handler(req, res) {
         // Initialize the super-fast Gemini model
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const prompt = `
-            You are Lumina, a highly intelligent and encouraging academic advisor AI built into a Grade Calculator iOS App. 
-            Here is the live data of the student's Infinite Campus grades:
-            ${JSON.stringify(student_data, null, 2)}
-            
-            The student says: "${user_message}"
-            
-            Respond directly to the student in a helpful, concise, and mathematical way. Do not output raw JSON, just write a conversational response.
-        `;
+        const systemContext = `You are Lumina, a highly intelligent and encouraging academic advisor AI built into a Grade Calculator iOS App. 
+Here is the live data of the student's Infinite Campus grades:
+${JSON.stringify(student_data, null, 2)}
 
-        const result = await model.generateContent(prompt);
+Respond directly to the student in a helpful, concise, and mathematical way. Do not output raw JSON, just write a conversational response. Do NOT greet the user on every single message — only greet them on the very first message.`;
+
+        // Build conversation history for multi-turn memory
+        const chatHistory = (history || []).map(m => ({
+            role: m.role,
+            parts: [{ text: m.content }]
+        }));
+
+        // Start a chat session with prior history
+        const chat = model.startChat({
+            history: [
+                { role: 'user', parts: [{ text: systemContext }] },
+                { role: 'model', parts: [{ text: "Understood! I'm ready to help analyze grades." }] },
+                ...chatHistory
+            ]
+        });
+
+        const result = await chat.sendMessage(user_message);
         const responseText = result.response.text();
 
         return res.status(200).json({ reply: responseText });

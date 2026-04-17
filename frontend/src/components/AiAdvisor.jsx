@@ -22,12 +22,13 @@ export default function AiAdvisor({ courses, onClose }) {
     if (!inputText.trim()) return;
 
     const userMsg = inputText.trim();
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    const updatedMessages = [...messages, { role: 'user', content: userMsg }];
+    setMessages(updatedMessages);
     setInputText("");
     setIsLoading(true);
 
-    // Call the Client
-    const reply = await getAiResponse(courses, userMsg);
+    // Pass full conversation history so AI remembers context
+    const reply = await getAiResponse(courses, userMsg, updatedMessages);
     
     setMessages(prev => [...prev, { role: 'ai', content: reply }]);
     setIsLoading(false);
