@@ -43,6 +43,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ reply: responseText });
     } catch (error) {
         console.error("AI Error:", error);
-        return res.status(500).json({ reply: "Sorry, I ran into a technical error parsing your grades!" });
+        return res.status(500).json({ reply: `API Error: ${error.message}` });
     }
 }
