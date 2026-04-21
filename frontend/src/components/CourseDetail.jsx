@@ -1,10 +1,32 @@
 import React, { useState } from 'react';
 import { calculateOverallGrade, calculateCategoryGrade, getLetterGrade } from '../utils/mathEngine';
 import FinalCalculator from './FinalCalculator';
+import AiAdvisor from './AiAdvisor';
 
 export default function CourseDetail({ course, onBack }) {
   const [categories, setCategories] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showAi, setShowAi] = useState(false);
+  const syllabusKey = `syllabus_${course.id || course.name}`;
+  const syllabusNameKey = `syllabus_name_${course.id || course.name}`;
+  const [syllabusName, setSyllabusName] = useState(() => localStorage.getItem(syllabusNameKey) || null);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+        alert("File too large. Please keep syllabus under 4MB.");
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const base64String = event.target.result;
+        localStorage.setItem(syllabusKey, base64String);
+        localStorage.setItem(syllabusNameKey, file.name);
+        setSyllabusName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Load grade history for this course from localStorage
   const [gradeHistory, setGradeHistory] = useState(() => {
@@ -291,7 +313,10 @@ export default function CourseDetail({ course, onBack }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
         <h2>Assignments</h2>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <button onClick={() => setShowAi(!showAi)} className="btn-primary" style={{ background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)', border: 'none', width: 'auto' }}>
+            ✨ AI Tutor
+          </button>
           {hasOverrides && (
             <button onClick={() => { setRefreshTrigger(prev => prev + 1); setShowWhatIf(false); }} className="btn-secondary" style={{ width: 'auto', color: 'var(--danger-color)', borderColor: 'var(--danger-color)', padding: '0.5rem 1rem' }}>
               Reset Simulator
@@ -302,6 +327,31 @@ export default function CourseDetail({ course, onBack }) {
           </button>
         </div>
       </div>
+
+      {/* Syllabus Upload Section */}
+      <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>📄 Class Syllabus <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Beta</span></h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '400px' }}>Upload your syllabus (PDF or image) to give the AI Tutor context on grading policies and missing work rules.</p>
+        </div>
+        <div>
+          {syllabusName ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--success-color)' }}>✓ {syllabusName} loaded</span>
+              <button onClick={() => { localStorage.removeItem(syllabusKey); localStorage.removeItem(syllabusNameKey); setSyllabusName(null); }} className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>Remove</button>
+            </div>
+          ) : (
+            <label className="btn-secondary" style={{ cursor: 'pointer', padding: '0.6rem 1rem', display: 'inline-block', margin: 0 }}>
+              Upload File
+              <input type="file" accept="application/pdf,image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {showAi && (
+        <AiAdvisor courses={[course]} focusedCourse={course.name} syllabusKey={syllabusKey} onClose={() => setShowAi(false)} />
+      )}
 
       {showWhatIf && (
         <div className="glass-card animate-slide-up" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--primary-color)' }}>

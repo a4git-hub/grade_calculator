@@ -1,6 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import React, { useState, useEffect } from 'react';
 
+// Track any open InAppBrowser instance so we can force-close it before opening a new one
+let activeBrowser = null;
+
 export default function Login({ onLogin, autoSync = false }) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -9,8 +12,11 @@ export default function Login({ onLogin, autoSync = false }) {
     useEffect(() => {
         if (autoSync && !isLoading) {
             setShowSyncForm(true);
-            handleSubmit({ preventDefault: () => {} });
+            // Delay slightly to let the component fully mount before triggering
+            const t = setTimeout(() => handleSubmit({ preventDefault: () => {} }), 100);
+            return () => clearTimeout(t);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoSync]);
 
     const handleDemoLogin = () => {
@@ -42,8 +48,17 @@ export default function Login({ onLogin, autoSync = false }) {
                      throw new Error("Native Scraper Plugin missing. Please rebuild Xcode project after syncing.");
                 }
 
+                // Force-close any lingering browser from a previous session
+                if (activeBrowser) {
+                    try { activeBrowser.close(); } catch (_) {}
+                    activeBrowser = null;
+                    // Small pause to let the native layer clean up
+                    await new Promise(r => setTimeout(r, 400));
+                }
+
                 data = await new Promise((resolve, reject) => {
                     const browser = window.cordova.InAppBrowser.open('https://srvusd.infinitecampus.org/campus/portal/students/sanRamon.jsp', '_blank', 'location=no,toolbar=yes');
+                    activeBrowser = browser;
 
                     browser.addEventListener('loadstop', (event) => {
                         console.log("Native WebView Reached:", event.url);
@@ -120,7 +135,8 @@ export default function Login({ onLogin, autoSync = false }) {
 
                                         if (pId) {
                                             clearInterval(timer);
-                                            var hdrs = { 'Accept': 'application/json' };
+                                            // Always request fresh data — never serve cached grades
+                                            var hdrs = { 'Accept': 'application/json', 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' };
                                             var bUrl = 'https://srvusd.infinitecampus.org';
                                             
                                             // Execute Extraction Payload!
@@ -207,9 +223,19 @@ export default function Login({ onLogin, autoSync = false }) {
 
                     browser.addEventListener('exit', () => {
                         clearInterval(nativePollInterval);
+                        activeBrowser = null;
                         reject(new Error("Login window closed before sync completed."));
                     });
+
+                    // Also handle the case where the page itself fails to load
+                    browser.addEventListener('loaderror', (err) => {
+                        clearInterval(nativePollInterval);
+                        activeBrowser = null;
+                        browser.close();
+                        reject(new Error("Could not reach Infinite Campus. Check your internet connection and try again."));
+                    });
                 });
+                activeBrowser = null;
             } else {
                 console.log("Launching Playwright interceptor on backend...");
                 const res = await fetch('http://localhost:8001/api/grades', {
@@ -337,8 +363,8 @@ export default function Login({ onLogin, autoSync = false }) {
         return (
             <div className="login-container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', gap: '2rem' }}>
                 <div style={{ textAlign: 'center' }}>
-                    <h1 style={{ fontSize: '3rem', color: 'var(--primary-color)', marginBottom: '1rem', textShadow: '0 0 20px rgba(99, 102, 241, 0.3)' }}>Grade Calculator</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', maxWidth: '500px', margin: '0 auto' }}>Calculate final exam scores, model what-if scenarios, and track your GPA seamlessly.</p>
+                    <h1 style={{ fontSize: '3rem', color: 'var(--primary-color)', marginBottom: '1rem', textShadow: '0 0 20px rgba(99, 102, 241, 0.3)' }}>Lumina</h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', maxWidth: '500px', margin: '0 auto' }}>Your AI-powered grade advisor. Sync live from Infinite Campus and ask Lumina anything.</p>
                 </div>
                 <button onClick={() => setShowSyncForm(true)} className="btn-primary" style={{ fontSize: '1.2rem', padding: '1rem 2.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -355,7 +381,15 @@ export default function Login({ onLogin, autoSync = false }) {
                 <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', color: 'var(--primary-color)' }}>Secure Browser Login</h2>
                 <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>Because your school uses ClassLink SSO, typing a password here won't work. We will securely open a browser window for you to log in visually, then automatically safely sync your data.</p>
 
-                {error && <div style={{ color: 'var(--danger-color)', marginBottom: '1rem', textAlign: 'center', border: '1px solid var(--danger-color)', padding: '0.5rem', borderRadius: '4px' }}>{error}</div>}
+                {error && (
+                    <div style={{ color: 'var(--danger-color)', marginBottom: '1rem', textAlign: 'center', border: '1px solid var(--danger-color)', padding: '0.75rem', borderRadius: '8px' }}>
+                        <div style={{ marginBottom: '0.5rem' }}>{error}</div>
+                        <button 
+                            onClick={() => { setError(''); handleSubmit({ preventDefault: () => {} }); }}
+                            style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', padding: '4px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+                        >↺ Try Again</button>
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', alignItems: 'center' }}>
                     <button onClick={handleSubmit} className="btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={isLoading}>

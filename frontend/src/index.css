@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap&display=optional');
 
 :root {
   /* Colors */
@@ -43,11 +43,11 @@ body {
   min-height: 100vh;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
-  /* subtle gradient background */
+  /* subtle gradient background — no fixed attachment (breaks iOS WKWebView) */
   background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
               radial-gradient(circle at 90% 80%, rgba(239, 68, 68, 0.05) 0%, transparent 40%),
               var(--bg-color);
-  background-attachment: fixed;
+  -webkit-overflow-scrolling: touch;
 }
 
 h1, h2, h3, h4, h5, h6 {

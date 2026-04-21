@@ -1,4 +1,4 @@
-export async function getAiResponse(fullGradeData, userMessage, history = []) {
+export async function getAiResponse(fullGradeData, userMessage, history = [], syllabusData = null) {
     // 1. Condense the massive IC JSON into a lightweight clean object
     // This prevents hitting the LLM token limits and saves money
     const condensedGrades = (fullGradeData || []).map(c => {
@@ -33,6 +33,7 @@ export async function getAiResponse(fullGradeData, userMessage, history = []) {
     const payload = {
         student_data: condensedGrades,
         user_message: userMessage,
+        syllabus: syllabusData, // newly added base64 PDF string
         // Send last 10 messages (skip the first AI greeting) for memory context
         history: history.slice(1, -1).slice(-10).map(m => ({
             role: m.role === 'user' ? 'user' : 'model',
@@ -58,8 +59,7 @@ export async function getAiResponse(fullGradeData, userMessage, history = []) {
 
         return data.reply;
     } catch (e) {
-        // Fallback mockup response so the UI works right now
-        console.warn("AI Backend not reached (expected if server isn't running yet).", e);
-        return "Hey! I'm Lumina AI. I can see your grades, but my backend server isn't turned on yet. Tell your friend to deploy the Vercel API and swap out the 'localhost' URL in `aiClient.js`!";
+        console.warn("AI Backend not reached:", e);
+        return "Sorry, I couldn't connect to my servers right now. Please check your internet connection and try again.";
     }
 }

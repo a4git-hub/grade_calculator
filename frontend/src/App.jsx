@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CourseDetail from './components/CourseDetail';
-import FinalCalculator from './components/FinalCalculator';
 import './index.css';
 
 function App() {
