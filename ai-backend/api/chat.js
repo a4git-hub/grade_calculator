@@ -70,13 +70,15 @@ Respond directly to the student in a helpful, concise, and mathematical way. Do 
 
         const systemParts = [{ text: systemContext }];
 
+        let activeMessageParts = [{ text: user_message }];
+
         if (syllabus) {
             const match = syllabus.match(/^data:(.*?);base64,(.*)$/);
             if (match) {
                 const mimeType = match[1];
                 const base64Data = match[2];
-                systemParts.push({ text: "Here is the course syllabus that applies to the grades:" });
-                systemParts.push({
+                activeMessageParts.push({ text: "Here is the course syllabus that applies to the grades:" });
+                activeMessageParts.push({
                     inlineData: {
                         data: base64Data,
                         mimeType: mimeType
@@ -98,7 +100,7 @@ Respond directly to the student in a helpful, concise, and mathematical way. Do 
             ]
         });
 
-        const result = await chat.sendMessage(user_message);
+        const result = await chat.sendMessage(activeMessageParts);
         return res.status(200).json({ reply: result.response.text() });
 
     } catch (error) {
