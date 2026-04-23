@@ -138,6 +138,7 @@ export default function CourseDetail({ course, onBack }) {
     setCategories(mappedCategories);
   }, [course, refreshTrigger]);
 
+  const whatIfRef = React.useRef(null);
   const [showWhatIf, setShowWhatIf] = useState(false);
   const [fakeName, setFakeName] = useState('Final Exam');
   const [fakeScore, setFakeScore] = useState(100);
@@ -314,47 +315,27 @@ export default function CourseDetail({ course, onBack }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
         <h2>Assignments</h2>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <button onClick={() => setShowAi(!showAi)} className="btn-primary" style={{ background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)', border: 'none', width: 'auto' }}>
-            ✨ AI Tutor
+          <button onClick={() => setShowAi(!showAi)} className="btn-primary" style={{ background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)', border: 'none', width: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            AI Tutor
+            <span className="tooltip" onClick={(e) => e.stopPropagation()}>?<span className="tooltip-text" style={{ fontWeight: 'normal', textTransform: 'none', letterSpacing: 'normal' }}>Ask questions about your grades, assignments, and how to improve.</span></span>
           </button>
           {hasOverrides && (
             <button onClick={() => { setRefreshTrigger(prev => prev + 1); setShowWhatIf(false); }} className="btn-secondary" style={{ width: 'auto', color: 'var(--danger-color)', borderColor: 'var(--danger-color)', padding: '0.5rem 1rem' }}>
               Reset Simulator
             </button>
           )}
-          <button onClick={() => setShowWhatIf(!showWhatIf)} className="btn-primary" style={{ width: 'auto' }}>
+          <button onClick={() => {
+            setShowWhatIf(!showWhatIf);
+            setTimeout(() => whatIfRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+          }} className="btn-primary" style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
             + Add What-If
+            <span className="tooltip" onClick={(e) => e.stopPropagation()}>?<span className="tooltip-text" style={{ fontWeight: 'normal', textTransform: 'none', letterSpacing: 'normal' }}>Simulate future assignments to see how they affect your overall grade.</span></span>
           </button>
         </div>
       </div>
 
-      {/* Syllabus Upload Section */}
-      <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>📄 Class Syllabus <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Beta</span></h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '400px' }}>Upload your syllabus (PDF or image) to give the AI Tutor context on grading policies and missing work rules.</p>
-        </div>
-        <div>
-          {syllabusName ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--success-color)' }}>✓ {syllabusName} loaded</span>
-              <button onClick={() => { localStorage.removeItem(syllabusKey); localStorage.removeItem(syllabusNameKey); setSyllabusName(null); }} className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>Remove</button>
-            </div>
-          ) : (
-            <label className="btn-secondary" style={{ cursor: 'pointer', padding: '0.6rem 1rem', display: 'inline-block', margin: 0 }}>
-              Upload File
-              <input type="file" accept="application/pdf,image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
-            </label>
-          )}
-        </div>
-      </div>
-
-      {showAi && (
-        <AiAdvisor courses={[course]} focusedCourse={course.name} syllabusKey={syllabusKey} onClose={() => setShowAi(false)} />
-      )}
-
       {showWhatIf && (
-        <div className="glass-card animate-slide-up" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--primary-color)' }}>
+        <div ref={whatIfRef} className="glass-card animate-slide-up" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--primary-color)' }}>
           <h3 style={{ marginBottom: '1rem' }}>Simulate a Grade</h3>
           <form style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }} onSubmit={handleAddFake}>
             <div style={{ flex: '1 1 200px' }}>
@@ -379,6 +360,37 @@ export default function CourseDetail({ course, onBack }) {
           </form>
         </div>
       )}
+
+      {/* Syllabus Upload Section */}
+      <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Class Syllabus <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Beta</span>
+            <span className="tooltip" style={{ marginLeft: '4px' }}>?<span className="tooltip-text" style={{ fontWeight: 'normal', textTransform: 'none', letterSpacing: 'normal' }}>Upload your class syllabus here to let Lumina read the teacher's late policies and rules.</span></span>
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '400px' }}>Upload your syllabus (PDF or Image) to give the AI Tutor context on grading policies. Export Word documents to PDF first.</p>
+        </div>
+        <div>
+          {syllabusName ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--success-color)' }}>✓ {syllabusName} loaded</span>
+              <button onClick={() => { localStorage.removeItem(syllabusKey); localStorage.removeItem(syllabusNameKey); setSyllabusName(null); }} className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>Remove</button>
+            </div>
+          ) : (
+            <label className="btn-secondary" style={{ cursor: 'pointer', padding: '0.6rem 1rem', display: 'inline-block', margin: 0 }}>
+              Upload File
+              <input type="file" accept="application/pdf, image/png, image/jpeg" onChange={handleFileUpload} style={{ display: 'none' }} />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {showAi && (
+        <AiAdvisor courses={[course]} focusedCourse={course.name} syllabusKey={syllabusKey} onClose={() => setShowAi(false)} />
+      )}
+
+
 
       {categories.map(cat => (
         <div key={cat.id} style={{ marginBottom: '2rem' }}>

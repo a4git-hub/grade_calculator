@@ -8,6 +8,31 @@ export default function Login({ onLogin, autoSync = false }) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [showSyncForm, setShowSyncForm] = useState(false);
+    const [districtLoginUrl, setDistrictLoginUrl] = useState(() => localStorage.getItem('lumina_custom_district_url') || 'https://srvusd.infinitecampus.org/campus/portal/students/sanRamon.jsp');
+    const [districtName, setDistrictName] = useState(() => localStorage.getItem('lumina_custom_district_name') || 'San Ramon Valley Unified');
+
+    const handleFindDistrict = async () => {
+        if (!Capacitor.isNativePlatform() || !window.cordova || !window.cordova.InAppBrowser) {
+            setError("District Search is only available on native devices. For web, please use SRVUSD.");
+            return;
+        }
+
+        const browser = window.cordova.InAppBrowser.open('https://www.infinitecampus.com/audience/parents-students/login-search', '_blank', 'location=no,toolbar=yes');
+        activeBrowser = browser;
+
+        browser.addEventListener('loadstart', (event) => {
+            if (event.url && (event.url.toLowerCase().includes('/campus/portal/students/') || event.url.toLowerCase().includes('/campus/portal/parents/'))) {
+                browser.close();
+                activeBrowser = null;
+                const newUrl = event.url;
+                localStorage.setItem('lumina_custom_district_url', newUrl);
+                setDistrictLoginUrl(newUrl);
+                setDistrictName("Custom District Linked!");
+                localStorage.setItem('lumina_custom_district_name', "Custom District Linked!");
+                setError("");
+            }
+        });
+    };
 
     useEffect(() => {
         if (autoSync && !isLoading) {
@@ -57,7 +82,8 @@ export default function Login({ onLogin, autoSync = false }) {
                 }
 
                 data = await new Promise((resolve, reject) => {
-                    const browser = window.cordova.InAppBrowser.open('https://srvusd.infinitecampus.org/campus/portal/students/sanRamon.jsp', '_blank', 'location=no,toolbar=yes');
+                    const sessionId = Date.now();
+                    const browser = window.cordova.InAppBrowser.open(districtLoginUrl, '_blank', 'location=no,toolbar=yes');
                     activeBrowser = browser;
 
                     browser.addEventListener('loadstop', (event) => {
@@ -74,7 +100,7 @@ export default function Login({ onLogin, autoSync = false }) {
                             const scraperCode = `
                             if (!window.ic_running) {
                                 window.ic_running = true;
-                                localStorage.removeItem('ic_intercepted_grades');
+                                localStorage.removeItem('ic_intercepted_grades_uid' + ${sessionId});
                                 
                                 // Heuristic 4: Background Network Monkey Patch
                                 window.ic_intercepted_pId = null;
@@ -122,8 +148,8 @@ export default function Login({ onLogin, autoSync = false }) {
                                         // Heuristic 3: Blind API fetch to student listing
                                         if (!pId) {
                                             try {
-                                                var bUrl = 'https://srvusd.infinitecampus.org';
-                                                var sRes = await oldFetch(bUrl + '/campus/resources/portal/students', {headers: {'Accept':'application/json'}});
+                                                var bUrl = window.location.origin;
+                                                var sRes = await oldFetch(bUrl + '/campus/resources/portal/students?_t=' + Date.now(), {headers: {'Accept':'application/json'}});
                                                 if(sRes.ok) {
                                                     var sData = await sRes.json();
                                                     if(Array.isArray(sData) && sData.length > 0 && sData[0].personID) {
@@ -137,12 +163,12 @@ export default function Login({ onLogin, autoSync = false }) {
                                             clearInterval(timer);
                                             // Always request fresh data — never serve cached grades
                                             var hdrs = { 'Accept': 'application/json', 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' };
-                                            var bUrl = 'https://srvusd.infinitecampus.org';
+                                            var bUrl = window.location.origin;
                                             
                                             // Execute Extraction Payload!
                                             var dynamicName = 'Student';
                                             try {
-                                                var sRes2 = await oldFetch(bUrl + '/campus/resources/portal/students', { headers: hdrs });
+                                                var sRes2 = await oldFetch(bUrl + '/campus/resources/portal/students?_t=' + Date.now(), { headers: hdrs });
                                                 if (sRes2.ok) {
                                                     var sData2 = await sRes2.json();
                                                     var me = sData2.find(s => String(s.personID) === String(pId));
@@ -151,20 +177,20 @@ export default function Login({ onLogin, autoSync = false }) {
                                                 }
                                             } catch(e) {}
                                             
-                                            var rosterRes = await oldFetch(bUrl + '/campus/resources/portal/roster?&personID=' + pId, { headers: hdrs });
+                                            var rosterRes = await oldFetch(bUrl + '/campus/resources/portal/roster?personID=' + pId + '&_t=' + Date.now(), { headers: hdrs });
                                             var roster = await rosterRes.json();
                                             
-                                            var assignRes = await oldFetch(bUrl + '/campus/api/portal/assignment/listView?&personID=' + pId, { headers: hdrs });
+                                            var assignRes = await oldFetch(bUrl + '/campus/api/portal/assignment/listView?personID=' + pId + '&_t=' + Date.now(), { headers: hdrs });
                                             var assign = await assignRes.json();
                                             
                                             var grades = [];
-                                            var gRes = await oldFetch(bUrl + '/campus/resources/portal/grades', { headers: hdrs });
+                                            var gRes = await oldFetch(bUrl + '/campus/resources/portal/grades?_t=' + Date.now(), { headers: hdrs });
                                             if (gRes.ok) {
                                                 var gData = await gRes.json();
                                                 if (Array.isArray(gData) && gData.length > 0 && gData[0].courses) {
                                                     grades = gData;
                                                 } else {
-                                                    var gRes2 = await oldFetch(bUrl + '/campus/api/portal/grades?personID=' + pId, { headers: hdrs });
+                                                    var gRes2 = await oldFetch(bUrl + '/campus/api/portal/grades?personID=' + pId + '&_t=' + Date.now(), { headers: hdrs });
                                                     if (gRes2.ok) grades = await gRes2.json();
                                                 }
                                             }
@@ -174,25 +200,25 @@ export default function Login({ onLogin, autoSync = false }) {
                                             for (var i = 0; i < roster.length; i++) {
                                                 var c = roster[i];
                                                 if (c.sectionID) {
-                                                    var cRes = await oldFetch(bUrl + '/campus/api/instruction/categories?sectionID=' + c.sectionID, { headers: hdrs });
+                                                    var cRes = await oldFetch(bUrl + '/campus/api/instruction/categories?sectionID=' + c.sectionID + '&_t=' + Date.now(), { headers: hdrs });
                                                     if (cRes.ok) {
                                                         var cData = await cRes.json();
                                                         if (Array.isArray(cData)) cats.push(...cData);
                                                     }
-                                                    var dRes = await oldFetch(bUrl + '/campus/resources/portal/grades/detail/' + c.sectionID + '?showAllTerms=false&classroomSectionID=' + c.sectionID, { headers: hdrs });
+                                                    var dRes = await oldFetch(bUrl + '/campus/resources/portal/grades/detail/' + c.sectionID + '?showAllTerms=false&classroomSectionID=' + c.sectionID + '&_t=' + Date.now(), { headers: hdrs });
                                                     if (dRes.ok) dets.push({ sectionID: c.sectionID, data: await dRes.json() });
                                                 }
                                             }
                                             
                                             var payload = { name: dynamicName, student_id: pId, courses: roster, assignments: assign || [], grades: grades || [], categories: cats, detail_data: dets };
-                                            localStorage.setItem('ic_intercepted_grades', JSON.stringify({ status: 'success', data: [payload] }));
+                                            localStorage.setItem('ic_intercepted_grades_uid' + \${sessionId}, JSON.stringify({ status: 'success', data: [payload] }));
                                         } else if (attempts > 15) {
                                             clearInterval(timer);
-                                            localStorage.setItem('ic_intercepted_grades', JSON.stringify({ status: 'error', message: 'Could not find Student ID in page source.' }));
+                                            localStorage.setItem('ic_intercepted_grades_uid' + \${sessionId}, JSON.stringify({ status: 'error', message: 'Could not find Student ID in page source.' }));
                                         }
                                     } catch (err) {
                                         clearInterval(timer);
-                                        localStorage.setItem('ic_intercepted_grades', JSON.stringify({ status: 'error', message: err.toString() }));
+                                        localStorage.setItem('ic_intercepted_grades_uid' + \${sessionId}, JSON.stringify({ status: 'error', message: err.toString() }));
                                     }
                                 }, 1000);
                             }; true;`;
@@ -203,7 +229,7 @@ export default function Login({ onLogin, autoSync = false }) {
 
                     // Outside of the load event, we check if the local polling was successful and resolved securely!
                     const nativePollInterval = setInterval(() => {
-                        browser.executeScript({ code: "localStorage.getItem('ic_intercepted_grades');" }, (values) => {
+                        browser.executeScript({ code: "localStorage.getItem('ic_intercepted_grades_uid" + sessionId + "');" }, (values) => {
                             if (values && values.length > 0) {
                                 const rawStr = values[0];
                                 if (rawStr && rawStr !== "null") {
@@ -370,6 +396,12 @@ export default function Login({ onLogin, autoSync = false }) {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                     Sync via ClassLink SSO
                 </button>
+                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Current District: <span style={{ color: 'var(--primary-color)' }}>{districtName}</span></span>
+                    <button onClick={handleFindDistrict} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                        Didn't see your district? Find it here
+                    </button>
+                </div>
             </div>
         );
     }

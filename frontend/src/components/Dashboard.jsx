@@ -40,8 +40,8 @@ export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh })
     // Determine motivation message
     const averageGrade = data.courses.reduce((acc, c) => acc + parseFloat(c.grade), 0) / data.courses.length;
     let motivationMessage = "Keep pushing forward!";
-    if (averageGrade >= 90) motivationMessage = "You're doing amazing, keep it up! 🚀";
-    else if (averageGrade >= 80) motivationMessage = "Solid work, maintaining a strong B average! 💪";
+    if (averageGrade >= 90) motivationMessage = "You're doing amazing, keep it up!";
+    else if (averageGrade >= 80) motivationMessage = "Solid work, maintaining a strong B average!";
 
     // Build Dynamic Needs Attention List
     const needsAttentionItems = [];
@@ -136,7 +136,7 @@ export default function Dashboard({ data, onSelectCourse, onLogout, onRefresh })
             <h2 style={{ marginTop: '3rem', marginBottom: '1rem' }}>Needs Attention</h2>
             {needsAttentionItems.length === 0 ? (
                 <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
-                    You have no missing or failing assignments. Great job! 🎉
+                    You have no missing or failing assignments. Great job!
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
