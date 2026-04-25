@@ -11,13 +11,32 @@ export default function CourseDetail({ course, onBack }) {
   const syllabusNameKey = `syllabus_name_${course.id || course.name}`;
   const [syllabusName, setSyllabusName] = useState(() => localStorage.getItem(syllabusNameKey) || null);
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) {
         alert("File too large. Please keep syllabus under 4MB.");
         return;
     }
+    
+    // Check if it's a DOCX file
+    if (file.name.toLowerCase().endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await window.mammoth.extractRawText({ arrayBuffer });
+        // Base64 encode the string to prevent transmission or localStorage corruptions
+        const encodedText = "rawtext:" + btoa(unescape(encodeURIComponent(result.value)));
+        
+        localStorage.setItem(syllabusKey, encodedText);
+        localStorage.setItem(syllabusNameKey, file.name);
+        setSyllabusName(file.name);
+      } catch (err) {
+        console.error("Error reading docx:", err);
+        alert("Could not read this Word Document. Please convert it to PDF.");
+      }
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
         const base64String = event.target.result;
@@ -369,7 +388,7 @@ export default function CourseDetail({ course, onBack }) {
             Class Syllabus <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Beta</span>
             <span className="tooltip" style={{ marginLeft: '4px' }}>?<span className="tooltip-text" style={{ fontWeight: 'normal', textTransform: 'none', letterSpacing: 'normal' }}>Upload your class syllabus here to let Lumina read the teacher's late policies and rules.</span></span>
           </h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '400px' }}>Upload your syllabus (PDF or Image) to give the AI Tutor context on grading policies. Export Word documents to PDF first.</p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '400px' }}>Upload your syllabus (PDF, Word Document, or Image) to give the AI Tutor context on grading policies.</p>
         </div>
         <div>
           {syllabusName ? (
@@ -380,7 +399,7 @@ export default function CourseDetail({ course, onBack }) {
           ) : (
             <label className="btn-secondary" style={{ cursor: 'pointer', padding: '0.6rem 1rem', display: 'inline-block', margin: 0 }}>
               Upload File
-              <input type="file" accept="application/pdf, image/png, image/jpeg" onChange={handleFileUpload} style={{ display: 'none' }} />
+              <input type="file" accept="application/pdf, image/png, image/jpeg, application/vnd.openxmlformats-officedocument.wordprocessingml.document, .docx" onChange={handleFileUpload} style={{ display: 'none' }} />
             </label>
           )}
         </div>

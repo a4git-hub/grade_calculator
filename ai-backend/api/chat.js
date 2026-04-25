@@ -73,17 +73,23 @@ Respond directly to the student in a helpful, concise, and mathematical way. Do 
         let activeMessageParts = [{ text: user_message }];
 
         if (syllabus) {
-            const match = syllabus.match(/^data:(.*?);base64,(.*)$/);
-            if (match) {
-                const mimeType = match[1];
-                const base64Data = match[2];
-                activeMessageParts.push({ text: "Here is the course syllabus that applies to the grades:" });
-                activeMessageParts.push({
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: mimeType
-                    }
-                });
+            if (syllabus.startsWith("rawtext:")) {
+                // Decode the Mammoth raw text safely handling utf-8
+                const decodedText = decodeURIComponent(escape(atob(syllabus.substring(8))));
+                activeMessageParts.push({ text: "Here is the raw text of the course syllabus (extracted from Microsoft Word) that applies to the grades:\n\n" + decodedText });
+            } else {
+                const match = syllabus.match(/^data:(.*?);base64,(.*)$/);
+                if (match) {
+                    const mimeType = match[1];
+                    const base64Data = match[2];
+                    activeMessageParts.push({ text: "Here is the course syllabus that applies to the grades:" });
+                    activeMessageParts.push({
+                        inlineData: {
+                            data: base64Data,
+                            mimeType: mimeType
+                        }
+                    });
+                }
             }
         }
 
