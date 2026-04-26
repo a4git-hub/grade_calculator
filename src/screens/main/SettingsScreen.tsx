@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
@@ -54,6 +57,22 @@ function SettingsGroup({ title, T, children }: { title: string; T: any; children
 
 export function SettingsScreen() {
   const { T, dark, toggleTheme } = useTheme();
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const tapCount = useRef(0);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const onVersionTap = () => {
+    tapCount.current += 1;
+    if (tapTimer.current) clearTimeout(tapTimer.current);
+    if (tapCount.current >= 5) {
+      tapCount.current = 0;
+      rootNav.navigate('IcSpike');
+      return;
+    }
+    tapTimer.current = setTimeout(() => {
+      tapCount.current = 0;
+    }, 2000);
+  };
 
   const densityToggle = (
     <View style={[styles.segControl, { backgroundColor: T.surface3 }]}>
@@ -149,7 +168,9 @@ export function SettingsScreen() {
             />
           </SettingsGroup>
 
-          <Text style={[monoStyle(T), styles.version]}>Lumina · v1.0 · build 240426</Text>
+          <TouchableOpacity onPress={onVersionTap} activeOpacity={1}>
+            <Text style={[monoStyle(T), styles.version]}>Lumina · v1.0 · build 240426</Text>
+          </TouchableOpacity>
 
           <View style={{ height: 40 }} />
         </ScrollView>
