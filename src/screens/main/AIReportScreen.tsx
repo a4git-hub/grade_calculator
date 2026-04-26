@@ -6,7 +6,7 @@ import { ClassesStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import { MockClasses } from '../../data/mock';
+import { useClasses } from '../../context/DataContext';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'AIReport'>;
 
@@ -70,8 +70,27 @@ function PlanWeek({ T, week, items, target, last }: {
 
 export function AIReportScreen({ navigation, route }: Props) {
   const { T, dark } = useTheme();
-  const subject = MockClasses.find(c => c.id === route.params.classId);
+  const classes = useClasses();
+  const subject = classes.find(c => c.id === route.params.classId);
   const backLabel = subject?.name ?? 'Class';
+
+  if (!subject) {
+    return (
+      <View style={[styles.root, { backgroundColor: T.bg }]}>
+        <SafeAreaView style={styles.safe} edges={['top']}>
+          <View style={styles.navBar}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <LIcon.ChevronLeft size={18} color={T.ink} stroke={2.4} />
+              <Text style={[styles.backText, { color: T.ink }]}>Back</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={[styles.headlineSub, { color: T.text2 }]}>Class not found.</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
