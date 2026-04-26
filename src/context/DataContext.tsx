@@ -62,7 +62,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setState(s => ({ ...s, syncStep: 'grades' }));
       const gradesRaw = await client.getGrades();
       setState(s => ({ ...s, syncStep: 'attention' }));
-      const recentRaw = await client.getRecentlyScored();
+      // recentlyScored requires a modifiedDate (returns 422 without it — IC
+      // treats it as a delta endpoint). 60 days back covers a typical
+      // grading window without flooding the response with stale items.
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 19); // → "YYYY-MM-DDTHH:mm:ss" (no ms, no Z — IC's format)
+      const recentRaw = await client.getRecentlyScored(sixtyDaysAgo);
 
       const user = mapUserAccount(userRaw, gradesRaw);
       const classes = mapGradesToClasses(gradesRaw);
