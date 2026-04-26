@@ -4,7 +4,7 @@ import type { UserProfile } from '../services/icTypes';
 import { IcClient } from '../services/icClient';
 import {
   mapUserAccount, mapGradesToClasses, mapGradesToSubjectDetails,
-  mapRecentlyScoredToAttention,
+  mapRecentlyScoredToAttention, computeGpa, type GpaSummary,
 } from '../services/icMapper';
 
 export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'done';
@@ -15,6 +15,7 @@ interface DataState {
   classes: ClassItem[];
   subjectDetails: Record<string, SubjectDetail>;
   attention: AttentionGroup[];
+  gpa: GpaSummary;
   syncedAt: number | null;
   syncStep: SyncStep;
   syncError: string | null;
@@ -32,6 +33,7 @@ const initialState: DataState = {
   classes: [],
   subjectDetails: {},
   attention: [],
+  gpa: { uw: 0, w: 0, trend: 0 },
   syncedAt: null,
   syncStep: 'idle',
   syncError: null,
@@ -71,9 +73,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const recentRaw = await client.getRecentlyScored(sixtyDaysAgo);
 
       const user = mapUserAccount(userRaw, gradesRaw);
-      const classes = mapGradesToClasses(gradesRaw);
-      const subjectDetails = mapGradesToSubjectDetails(gradesRaw);
+      const classes = mapGradesToClasses(gradesRaw, recentRaw);
+      const subjectDetails = mapGradesToSubjectDetails(gradesRaw, recentRaw);
       const attention = mapRecentlyScoredToAttention(recentRaw);
+      const gpa = computeGpa(classes);
 
       setState(s => ({
         ...s,
@@ -81,6 +84,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         classes,
         subjectDetails,
         attention,
+        gpa,
         syncedAt: Date.now(),
         syncStep: 'done',
         syncError: null,
@@ -114,3 +118,4 @@ export const useClasses = (): ClassItem[] => useDataContext().classes;
 export const useSubjectDetail = (id: string): SubjectDetail | null =>
   useDataContext().subjectDetails[id] ?? null;
 export const useAttention = (): AttentionGroup[] => useDataContext().attention;
+export const useGpa = (): GpaSummary => useDataContext().gpa;

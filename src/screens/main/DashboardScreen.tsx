@@ -7,15 +7,37 @@ import { useTheme } from '../../context/ThemeContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { ClassCard } from '../../components/ClassCard';
 import { LIcon } from '../../components/LIcon';
-import { MockGPA } from '../../data/mock';
-import { useClasses, useUser } from '../../context/DataContext';
+import { useClasses, useUser, useGpa } from '../../context/DataContext';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'Dashboard'>;
+
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatToday(now: Date = new Date()): string {
+  return `${DOW[now.getDay()]} · ${MON[now.getMonth()]} ${now.getDate()}`;
+}
+
+function buildSummary(classes: ReturnType<typeof useClasses>): string {
+  if (classes.length === 0) return 'Sync to see your grade summary.';
+  const stable = classes.filter(c => c.color === 'good').length;
+  const dipped = classes.filter(c => c.color === 'bad' || c.color === 'warn');
+  if (dipped.length === 0) {
+    return `All ${classes.length} classes are stable. Solid week.`;
+  }
+  // Name the lowest course as the focus.
+  const lowest = dipped.slice().sort((a, b) => a.pct - b.pct)[0]!;
+  return `${stable} of ${classes.length} classes are stable. ${lowest.name} dipped — we'll dig in.`;
+}
 
 export function DashboardScreen({ navigation }: Props) {
   const { T } = useTheme();
   const user = useUser();
   const classes = useClasses();
+  const gpa = useGpa();
+  const today = formatToday();
+  const summary = buildSummary(classes);
+  const trendUp = gpa.trend >= 0;
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -27,7 +49,7 @@ export function DashboardScreen({ navigation }: Props) {
         >
           {/* Header */}
           <View style={styles.headerRow}>
-            <Text style={[monoStyle(T)]}>Sat · Apr 26</Text>
+            <Text style={[monoStyle(T)]}>{today}</Text>
             <View style={[styles.syncBadge, { backgroundColor: T.goodSoft }]}>
               <View style={[styles.syncDot, { backgroundColor: T.good }]} />
               <Text style={[styles.syncText, { color: T.good }]}>Synced · just now</Text>
@@ -35,29 +57,31 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <Text style={[styles.headline, { color: T.text }]}>
-            Hey {user?.firstName ?? ''}. Solid week{'\n'}so far.
+            Hey {user?.firstName ?? 'there'}.
           </Text>
           <Text style={[styles.headlineSub, { color: T.text2 }]}>
-            5 of 6 classes are stable. Pre Calc dipped — we'll dig in.
+            {summary}
           </Text>
 
           {/* GPA strip */}
           <View style={[styles.gpaCard, { backgroundColor: T.surface, borderColor: T.hairline }]}>
             <View style={styles.gpaCell}>
               <Text style={[monoStyle(T)]}>GPA · Unweighted</Text>
-              <Text style={[styles.gpaVal, { color: T.text }]}>{MockGPA.uw.toFixed(2)}</Text>
+              <Text style={[styles.gpaVal, { color: T.text }]}>{gpa.uw.toFixed(2)}</Text>
             </View>
             <View style={[styles.gpaDivider, { borderColor: T.hairline }]} />
             <View style={styles.gpaCell}>
               <Text style={[monoStyle(T)]}>GPA · Weighted</Text>
-              <Text style={[styles.gpaVal, { color: T.accent }]}>{MockGPA.w.toFixed(2)}</Text>
+              <Text style={[styles.gpaVal, { color: T.accent }]}>{gpa.w.toFixed(2)}</Text>
             </View>
             <View style={[styles.gpaDivider, { borderColor: T.hairline }]} />
             <View style={styles.gpaCell}>
               <Text style={[monoStyle(T)]}>This week</Text>
               <View style={styles.trendRow}>
-                <LIcon.Trend size={14} color={T.good} stroke={2.4} />
-                <Text style={[styles.gpaVal, { color: T.good }]}>+0.4</Text>
+                <LIcon.Trend size={14} color={trendUp ? T.good : T.bad} stroke={2.4} />
+                <Text style={[styles.gpaVal, { color: trendUp ? T.good : T.bad }]}>
+                  {gpa.trend === 0 ? '—' : `${trendUp ? '+' : ''}${gpa.trend.toFixed(2)}`}
+                </Text>
               </View>
             </View>
           </View>

@@ -1,10 +1,24 @@
 import type {
-  ClassItem, SubjectDetail, AttentionGroup, AttentionItem,
+  ClassItem, SubjectDetail, AttentionGroup, AttentionItem, Assignment,
 } from '../types';
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored,
   RawGradingTask, UserProfile,
 } from './icTypes';
+
+export interface GpaSummary {
+  /** Unweighted GPA on a 4.0 scale, 2 decimals. */
+  uw: number;
+  /** Weighted GPA: AP/Honors courses get +1.0. */
+  w: number;
+  /**
+   * Week-over-week GPA delta. 0 in v1 — needs grade history endpoint
+   * (Phase 1.5: /campus/resources/portal/grades/detail/{sid}). When that
+   * lands, compute by recomputing GPA at "1 week ago" snapshot and
+   * subtracting from current.
+   */
+  trend: number;
+}
 
 const TASK_PRIORITY: Record<string, number> = {
   'Semester Grade': 3,
@@ -30,6 +44,56 @@ export function letterForPct(pct: number): string {
   if (pct >= 67) return 'D+';
   if (pct >= 60) return 'D';
   return 'F';
+}
+
+/** Standard 4.0-scale GPA points for each letter grade. */
+export function letterToGpaPoints(letter: string): number {
+  const L = letter.trim().toUpperCase();
+  switch (L) {
+    case 'A+': case 'A':  return 4.0;
+    case 'A-':            return 3.7;
+    case 'B+':            return 3.3;
+    case 'B':             return 3.0;
+    case 'B-':            return 2.7;
+    case 'C+':            return 2.3;
+    case 'C':             return 2.0;
+    case 'C-':            return 1.7;
+    case 'D+':            return 1.3;
+    case 'D':             return 1.0;
+    case 'D-':            return 0.7;
+    default:              return 0.0;
+  }
+}
+
+/** Detect AP / Honors / IB / dual-enrollment courses for the +1.0 weighted bump. */
+export function isHonorsCourse(courseName: string): boolean {
+  if (!courseName) return false;
+  // Match whole words to avoid e.g. "Apparel" → AP. \b is the word boundary.
+  return /\b(AP|Honors?|IB|Adv|Advanced|Dual)\b/i.test(courseName);
+}
+
+/**
+ * Compute unweighted + weighted GPA from the mapped class list.
+ * GPA is the mean of per-course GPA points (uw) or +1.0-bumped points (w).
+ * Excludes pass/fail or non-academic courses (heuristic: PE / Phys Ed).
+ */
+export function computeGpa(classes: ClassItem[]): GpaSummary {
+  const academic = classes.filter(c => !/\b(P\.?\s?E\.?|Phys(\.|\s)?\s?Ed)\b/i.test(c.name));
+  if (academic.length === 0) return { uw: 0, w: 0, trend: 0 };
+
+  let uwSum = 0;
+  let wSum = 0;
+  for (const c of academic) {
+    const points = letterToGpaPoints(c.letter);
+    uwSum += points;
+    wSum += isHonorsCourse(c.name) ? points + 1.0 : points;
+  }
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  return {
+    uw: round2(uwSum / academic.length),
+    w: round2(wSum / academic.length),
+    trend: 0, // populated once history endpoint is wired
+  };
 }
 
 /**
@@ -76,7 +140,74 @@ export function mapUserAccount(raw: RawUserAccount, grades?: RawGradesResponse):
   };
 }
 
-export function mapGradesToClasses(raw: RawGradesResponse): ClassItem[] {
+/** Map RecentlyScored → Assignment (the per-class assignment row shape). */
+function recentlyScoredToAssignment(item: RawRecentlyScored): Assignment {
+  const earned = parseFloat(item.scorePoints ?? '');
+  const possible = item.totalPoints ?? 0;
+  const score = !Number.isNaN(earned) && possible > 0
+    ? `${earned} / ${possible}`
+    : (item.score ?? '—');
+  const pctValue = parseFloat(item.scorePercentage ?? '');
+  const pctStr = !Number.isNaN(pctValue)
+    ? `${pctValue.toFixed(pctValue % 1 === 0 ? 0 : 1)}%`
+    : '—';
+  // Truncated category — actual category name comes from /categories endpoint.
+  // Until that's wired, derive a 4-char hint from a simple keyword scan of
+  // the assignment name (HW / Test / Quiz / Lab / Proj). Falls back to 'Item'.
+  const name = item.assignmentName ?? '';
+  const cat = /\b(homework|HW)\b/i.test(name) ? 'HW'
+    : /\b(test|exam)\b/i.test(name)            ? 'Test'
+    : /\b(quiz)\b/i.test(name)                 ? 'Quiz'
+    : /\b(lab)\b/i.test(name)                  ? 'Lab'
+    : /\b(project|proj)\b/i.test(name)         ? 'Proj'
+    : 'Item';
+  return {
+    name,
+    score,
+    pct: pctStr,
+    cat,
+    pos: !Number.isNaN(pctValue) ? colorForPct(pctValue) : 'warn',
+  };
+}
+
+/** Group recently-scored items by sectionID for piping into per-class assignments. */
+export function groupRecentBySection(recent: RawRecentlyScored[]): Record<string, RawRecentlyScored[]> {
+  const out: Record<string, RawRecentlyScored[]> = {};
+  for (const item of recent) {
+    const sid = String(item.sectionID);
+    (out[sid] ??= []).push(item);
+  }
+  // Sort each group by scoreModifiedDate desc (most recent first).
+  for (const sid of Object.keys(out)) {
+    out[sid]!.sort((a, b) => (b.scoreModifiedDate ?? '').localeCompare(a.scoreModifiedDate ?? ''));
+  }
+  return out;
+}
+
+/**
+ * Count flagged items (late/missing/cheated/incomplete/dropped) per sectionID.
+ * Drives the red flag count badge on each ClassCard.
+ */
+export function flagsBySection(recent: RawRecentlyScored[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of recent) {
+    const isFlagged = item.late || item.missing || item.cheated || item.dropped || item.incomplete;
+    if (!isFlagged) continue;
+    const sid = String(item.sectionID);
+    out[sid] = (out[sid] ?? 0) + 1;
+  }
+  return out;
+}
+
+/**
+ * Map IC grades response → app ClassItem list.
+ * Optionally takes the recentlyScored array to populate per-course `flags` count.
+ */
+export function mapGradesToClasses(
+  raw: RawGradesResponse,
+  recent?: RawRecentlyScored[],
+): ClassItem[] {
+  const flagCounts = recent ? flagsBySection(recent) : {};
   const classes: ClassItem[] = [];
   for (const enrollment of raw) {
     for (const course of enrollment.courses) {
@@ -84,18 +215,20 @@ export function mapGradesToClasses(raw: RawGradesResponse): ClassItem[] {
       const task = pickActiveTermGrade(course.gradingTasks);
       const pct = task?.progressPercent ?? 0;
       const letter = task?.progressScore?.trim() || letterForPct(pct);
+      const sid = String(course.sectionID);
       classes.push({
-        id: String(course.sectionID),
+        id: sid,
         code: course.courseNumber,
         name: course.courseName,
         term: task ? semesterFromTermName(task.termName) : 'S2',
         teacher: course.teacherDisplay,
         letter,
         pct,
-        trend: 0, // history endpoint deferred to Phase 2
+        // Trend needs history (grades/detail endpoint) — stays 0 until wired.
+        trend: 0,
         color: colorForPct(pct),
         next: '',
-        flags: 0,
+        flags: flagCounts[sid] ?? 0,
       });
     }
   }
@@ -104,19 +237,28 @@ export function mapGradesToClasses(raw: RawGradesResponse): ClassItem[] {
 
 /**
  * Build subject detail map keyed by sectionID.
- * categories/history/assignments are EMPTY in v1 — those require per-section
- * /categories and /grades/detail/{sid} endpoints not in this phase. Phase 2
- * fills them in. Empty arrays render as "no data yet" UI states cleanly.
+ *
+ * In v1 (this phase) we populate `assignments` from the already-fetched
+ * recentlyScored data. Categories + history still require per-section
+ * /categories and /grades/detail/{sid} endpoints — those land in Phase 1.5
+ * once their response schemas are captured. Empty arrays render as "no data
+ * yet" UI states cleanly.
  */
-export function mapGradesToSubjectDetails(raw: RawGradesResponse): Record<string, SubjectDetail> {
+export function mapGradesToSubjectDetails(
+  raw: RawGradesResponse,
+  recent?: RawRecentlyScored[],
+): Record<string, SubjectDetail> {
+  const recentBySid = recent ? groupRecentBySection(recent) : {};
   const out: Record<string, SubjectDetail> = {};
   for (const enrollment of raw) {
     for (const course of enrollment.courses) {
       if (course.dropped) continue;
-      out[String(course.sectionID)] = {
+      const sid = String(course.sectionID);
+      const recentForCourse = recentBySid[sid] ?? [];
+      out[sid] = {
         categories: [],
         history: [],
-        assignments: [],
+        assignments: recentForCourse.map(recentlyScoredToAssignment),
       };
     }
   }
