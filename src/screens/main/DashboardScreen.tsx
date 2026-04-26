@@ -7,12 +7,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { ClassCard } from '../../components/ClassCard';
 import { LIcon } from '../../components/LIcon';
-import { MockClasses, MockGPA, MockUser } from '../../data/mock';
+import { MockGPA } from '../../data/mock';
+import { useClasses, useUser } from '../../context/DataContext';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'Dashboard'>;
 
 export function DashboardScreen({ navigation }: Props) {
   const { T } = useTheme();
+  const user = useUser();
+  const classes = useClasses();
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -32,7 +35,7 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <Text style={[styles.headline, { color: T.text }]}>
-            Hey {MockUser.name}. Solid week{'\n'}so far.
+            Hey {user?.firstName ?? ''}. Solid week{'\n'}so far.
           </Text>
           <Text style={[styles.headlineSub, { color: T.text2 }]}>
             5 of 6 classes are stable. Pre Calc dipped — we'll dig in.
@@ -69,7 +72,7 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.cardList}>
-            {MockClasses.map((c) => (
+            {classes.map((c) => (
               <ClassCard
                 key={c.id}
                 item={c}
