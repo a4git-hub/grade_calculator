@@ -3,10 +3,16 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
-import { MockAttention } from '../../data/mock';
+import { useAttention } from '../../context/DataContext';
 
 export function AttentionScreen() {
   const { T } = useTheme();
+  const attention = useAttention();
+
+  const totalItems = attention.reduce((sum, g) => sum + g.items.length, 0);
+  const kickerText = attention.length === 0
+    ? 'All clear'
+    : `${totalItems} item${totalItems !== 1 ? 's' : ''} · across ${attention.length} class${attention.length !== 1 ? 'es' : ''}`;
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -16,13 +22,15 @@ export function AttentionScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[monoStyle(T), styles.kicker]}>6 items · across 2 classes</Text>
+          <Text style={[monoStyle(T), styles.kicker]}>{kickerText}</Text>
           <Text style={[styles.title, { color: T.text }]}>Needs attention</Text>
           <Text style={[styles.sub, { color: T.text2 }]}>
-            Sorted by impact on your grade — fix the top one first.
+            {attention.length === 0
+              ? 'Nothing needs your attention right now.'
+              : 'Sorted by impact on your grade — fix the top one first.'}
           </Text>
 
-          {MockAttention.map((group, gi) => {
+          {attention.map((group, gi) => {
             const c = group.sev === 'bad' ? T.bad : T.warn;
             return (
               <View key={gi} style={styles.group}>
