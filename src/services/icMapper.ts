@@ -3,7 +3,7 @@ import type {
 } from '../types';
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored,
-  RawGradingTask, UserProfile,
+  RawGradingTask, UserProfile, RawGpaResponse,
 } from './icTypes';
 
 export interface GpaSummary {
@@ -73,9 +73,48 @@ export function isHonorsCourse(courseName: string): boolean {
 }
 
 /**
+ * Map IC's official GPA endpoint into the app's GpaSummary shape.
+ *
+ * Strategy:
+ *   - Prefer Cumulative entries (most students view this)
+ *   - Within those, find the unweighted=true variant for `uw`,
+ *     unweighted=false for `w`
+ *   - When IC only provides one variant, fill the other from the fallback
+ *     (computeGpa's best-effort heuristic from class list)
+ *   - Trend stays from fallback (GPA endpoint doesn't expose week-over-week)
+ *
+ * IC's GPA reflects district-specific policy (which courses count, honors
+ * bump amount, dual-enrollment treatment) that our heuristic can't know,
+ * so it ALWAYS wins when present.
+ */
+export function mapIcGpa(raw: RawGpaResponse, fallback: GpaSummary): GpaSummary {
+  if (!Array.isArray(raw) || raw.length === 0) return fallback;
+  const cumulative = raw.filter(r => r.type === 'Cumulative');
+  const source = cumulative.length > 0 ? cumulative : raw;
+  const uw = source.find(r => r.unweighted === true);
+  const w = source.find(r => r.unweighted === false);
+  const parse = (entry: typeof uw | typeof w): number => {
+    if (!entry) return NaN;
+    const n = parseFloat(entry.gpa);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+  };
+  const uwParsed = parse(uw);
+  const wParsed = parse(w);
+  return {
+    uw: Number.isNaN(uwParsed) ? fallback.uw : uwParsed,
+    w: Number.isNaN(wParsed) ? fallback.w : wParsed,
+    trend: fallback.trend,
+  };
+}
+
+/**
  * Compute unweighted + weighted GPA from the mapped class list.
  * GPA is the mean of per-course GPA points (uw) or +1.0-bumped points (w).
  * Excludes pass/fail or non-academic courses (heuristic: PE / Phys Ed).
+ *
+ * Used as a FALLBACK when IC's official GPA endpoint is unavailable. IC's
+ * official numbers (mapIcGpa) win when present because they respect
+ * district policy on weighting + course inclusion.
  */
 export function computeGpa(classes: ClassItem[]): GpaSummary {
   const academic = classes.filter(c => !/\b(P\.?\s?E\.?|Phys(\.|\s)?\s?Ed)\b/i.test(c.name));

@@ -1,5 +1,6 @@
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored, RawRosterEntry,
+  RawGpaResponse,
 } from './icTypes';
 
 /**
@@ -50,6 +51,16 @@ export class IcClient {
     const expand = '_expand=' + encodeURIComponent('{sectionPlacements-{term}}');
     const date = dateIso ? `&_date=${encodeURIComponent(dateIso)}` : '';
     return this.getJson<RawRosterEntry[]>(`/campus/resources/portal/roster?${expand}${date}`);
+  }
+
+  /**
+   * IC's official GPA. Returns an array — typically one Cumulative entry,
+   * possibly with both unweighted+weighted variants. Path's redundant-looking
+   * suffix (`gpas/my/gpa`) reflects IC's REST shape: collection / selector /
+   * single resource.
+   */
+  getGpa(): Promise<RawGpaResponse> {
+    return this.getJson<RawGpaResponse>('/campus/api/campus/grading/gpas/my/gpa');
   }
 }
 

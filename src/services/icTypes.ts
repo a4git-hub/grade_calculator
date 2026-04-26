@@ -215,6 +215,34 @@ export interface RawRosterEntry {
   sectionPlacements: RawRosterSectionPlacement[];
 }
 
+/**
+ * IC's official GPA record. The endpoint returns an array because IC supports
+ * multiple GPA flavors (Cumulative, term-specific, with/without bonus).
+ *
+ * Each entry has `unweighted: true|false` indicating which variant it is.
+ * Tenants may return one or both (some districts only expose weighted).
+ */
+export interface RawGpaEntry {
+  calendarID: number;
+  termSeq: number | null;
+  termName: string | null;
+  /** "Cumulative", "Term", "Quarter", etc. */
+  type: string;
+  structureID: number;
+  /** Numeric string, e.g. "3.85". Use parseFloat. */
+  gpa: string;
+  gpaBonus: string | null;
+  /** true → unweighted GPA, false → weighted GPA (with district honors bumps). */
+  unweighted: boolean;
+  bonusPoints: number | null;
+  rank: number | null;
+  rankBonus: number | null;
+  outOf: number | null;
+  gpaName: string | null;
+}
+
+export type RawGpaResponse = RawGpaEntry[];
+
 // ---------------------------------------------------------------------------
 // App-domain projection of the user (replaces MockUser shape from data/mock.ts).
 // All other domain types (ClassItem, SubjectDetail, AttentionGroup) live in

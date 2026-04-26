@@ -4,10 +4,10 @@ import type { UserProfile } from '../services/icTypes';
 import { IcClient } from '../services/icClient';
 import {
   mapUserAccount, mapGradesToClasses, mapGradesToSubjectDetails,
-  mapRecentlyScoredToAttention, computeGpa, type GpaSummary,
+  mapRecentlyScoredToAttention, computeGpa, mapIcGpa, type GpaSummary,
 } from '../services/icMapper';
 
-export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'done';
+export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'gpa' | 'done';
 
 interface DataState {
   client: IcClient | null;
@@ -71,12 +71,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .toISOString()
         .slice(0, 19); // → "YYYY-MM-DDTHH:mm:ss" (no ms, no Z — IC's format)
       const recentRaw = await client.getRecentlyScored(sixtyDaysAgo);
+      setState(s => ({ ...s, syncStep: 'gpa' }));
+      // IC's official GPA endpoint. Falls back to computed if unavailable.
+      let gpaRaw: Awaited<ReturnType<typeof client.getGpa>> | null = null;
+      try {
+        gpaRaw = await client.getGpa();
+      } catch (e) {
+        // Non-fatal: we'll fall back to computeGpa from class list.
+        // eslint-disable-next-line no-console
+        console.log('[DataContext] GPA endpoint failed, using computed fallback:', e);
+      }
 
       const user = mapUserAccount(userRaw, gradesRaw);
       const classes = mapGradesToClasses(gradesRaw, recentRaw);
       const subjectDetails = mapGradesToSubjectDetails(gradesRaw, recentRaw);
       const attention = mapRecentlyScoredToAttention(recentRaw);
-      const gpa = computeGpa(classes);
+      const computedGpa = computeGpa(classes);
+      const gpa = gpaRaw ? mapIcGpa(gpaRaw, computedGpa) : computedGpa;
 
       setState(s => ({
         ...s,
