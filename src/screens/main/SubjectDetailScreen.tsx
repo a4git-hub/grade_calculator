@@ -11,7 +11,7 @@ import { monoStyle, gradeColor, Fonts } from '../../tokens';
 import { Sparkline } from '../../components/Sparkline';
 import { AISheet } from '../../components/AISheet';
 import { LIcon } from '../../components/LIcon';
-import { MockClasses, MockPreCalc } from '../../data/mock';
+import { useClasses, useSubjectDetail } from '../../context/DataContext';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'SubjectDetail'>;
 
@@ -19,9 +19,18 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
   const { T, dark } = useTheme();
   const [aiVisible, setAiVisible] = useState(false);
 
-  const subject = MockClasses.find(c => c.id === route.params.classId) ?? MockClasses[2];
-  const detail  = MockPreCalc; // real app: load by subject.id
-  const col     = gradeColor(T, subject.color);
+  const classes = useClasses();
+  const subject = classes.find(c => c.id === route.params.classId) ?? null;
+  const detail  = useSubjectDetail(route.params.classId) ?? { categories: [], history: [], assignments: [] };
+  const col     = gradeColor(T, subject?.color ?? 'good');
+
+  if (!subject) {
+    return (
+      <View style={[styles.root, { backgroundColor: T.bg, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: T.text2, fontSize: 15 }}>Loading…</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -105,11 +114,17 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
           {/* Trajectory */}
           <Text style={[styles.sectionLabel, { color: T.text2 }]}>Trajectory · 10 days</Text>
           <View style={[styles.card, { backgroundColor: T.surface, borderColor: T.hairline }]}>
-            <Sparkline data={detail.history.map(h => h.v)} color={col} width={310} height={84} />
-            <View style={styles.chartDates}>
-              <Text style={[monoStyle(T)]}>{detail.history[0].d}</Text>
-              <Text style={[monoStyle(T)]}>{detail.history[detail.history.length - 1].d}</Text>
-            </View>
+            {detail.history.length > 0 ? (
+              <>
+                <Sparkline data={detail.history.map(h => h.v)} color={col} width={310} height={84} />
+                <View style={styles.chartDates}>
+                  <Text style={[monoStyle(T)]}>{detail.history[0].d}</Text>
+                  <Text style={[monoStyle(T)]}>{detail.history[detail.history.length - 1].d}</Text>
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.emptyNote, { color: T.text3 }]}>No data yet</Text>
+            )}
           </View>
 
           {/* Assignments */}
@@ -407,5 +422,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
+  },
+  emptyNote: {
+    fontSize: 13,
+    paddingVertical: 14,
+    textAlign: 'center',
   },
 });
