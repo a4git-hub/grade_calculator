@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Lumina",
+    "slug": "lumina",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#070C14"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.lumina.grades",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used for uploading syllabus photos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#070C14"
+      },
+      "package": "com.lumina.grades"
+    },
+    "plugins": [
+      "expo-blur"
+    ]
+  }
+}
