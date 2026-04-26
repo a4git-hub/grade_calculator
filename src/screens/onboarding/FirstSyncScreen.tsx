@@ -10,20 +10,21 @@ import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
+import { useData } from '../../context/DataContext';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'FirstSync'>;
 
-const SYNC_ITEMS = [
-  { label: 'Authenticated as Aditya Krishnan', done: true  },
-  { label: 'Loaded course roster · 6 classes', done: true  },
-  { label: 'Pulling assignments & weights',    done: true  },
-  { label: 'Computing grade history',          done: false, active: true },
-  { label: 'Indexing for AI assessments',      done: false },
-];
+const RADIUS = 70;
+const CIRC   = 2 * Math.PI * RADIUS;
 
-const PROGRESS = 0.62;
-const RADIUS   = 70;
-const CIRC     = 2 * Math.PI * RADIUS;
+/** Map syncStep → [progress 0–1, display label] */
+const STEP_INFO: Record<string, [number, string]> = {
+  idle:      [0,    'Preparing…'],
+  user:      [0.25, 'Loading your profile…'],
+  grades:    [0.55, 'Pulling your grades…'],
+  attention: [0.80, 'Finding what needs attention…'],
+  done:      [1,    'All set!'],
+};
 
 function StepDots({ T }: { T: any }) {
   return (
@@ -37,11 +38,29 @@ function StepDots({ T }: { T: any }) {
 
 export function FirstSyncScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
+  const { syncStep, syncError, refresh } = useData();
+
   const pulseScale   = useRef(new Animated.Value(1)).current;
   const pulseOpacity = useRef(new Animated.Value(1)).current;
 
+  // Kick off the real data refresh on mount.
   useEffect(() => {
-    Animated.loop(
+    refresh();
+  }, [refresh]);
+
+  // Auto-advance to Main once sync completes.
+  useEffect(() => {
+    if (syncStep === 'done') {
+      const t = setTimeout(() => {
+        navigation.getParent<any>()?.reset({ index: 0, routes: [{ name: 'Main' }] });
+      }, 300);
+      return () => clearTimeout(t);
+    }
+  }, [syncStep, navigation]);
+
+  // Pulse animation for the active indicator ring.
+  useEffect(() => {
+    const anim = Animated.loop(
       Animated.parallel([
         Animated.sequence([
           Animated.timing(pulseScale,   { toValue: 1.5, duration: 600, useNativeDriver: true }),
@@ -52,8 +71,14 @@ export function FirstSyncScreen({ navigation }: Props) {
           Animated.timing(pulseOpacity, { toValue: 1,   duration: 600, useNativeDriver: true }),
         ]),
       ])
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, []);
+
+  const [progress, stepLabel] = STEP_INFO[syncStep] ?? STEP_INFO.idle;
+  const pct = Math.round(progress * 100);
+  const isDone = syncStep === 'done';
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -78,75 +103,81 @@ export function FirstSyncScreen({ navigation }: Props) {
               <Circle cx={80} cy={80} r={RADIUS} stroke={T.surface2} strokeWidth={6} fill="none" />
               <Circle
                 cx={80} cy={80} r={RADIUS}
-                stroke={T.accent} strokeWidth={6} fill="none"
+                stroke={isDone ? T.good : T.accent} strokeWidth={6} fill="none"
                 strokeLinecap="round"
-                strokeDasharray={`${PROGRESS * CIRC} ${CIRC}`}
+                strokeDasharray={`${progress * CIRC} ${CIRC}`}
               />
             </Svg>
             <View style={styles.ringCenter}>
               <Text style={[styles.ringPct, { color: T.text }]}>
-                62<Text style={[styles.ringSign, { color: T.text2 }]}>%</Text>
+                {pct}<Text style={[styles.ringSign, { color: T.text2 }]}>%</Text>
               </Text>
-              <Text style={[monoStyle(T), styles.syncLabel]}>Syncing</Text>
+              <Text style={[monoStyle(T), styles.syncLabel]}>
+                {isDone ? 'Done' : 'Syncing'}
+              </Text>
             </View>
           </View>
 
           <Text style={[styles.title, { color: T.text }]}>Tidying up your data</Text>
           <Text style={[styles.sub, { color: T.text2 }]}>This usually takes about 8 seconds.</Text>
 
-          {/* Sync items */}
+          {/* Step progress card */}
           <View style={[styles.itemsCard, { backgroundColor: T.surface, borderColor: T.hairline }]}>
-            {SYNC_ITEMS.map((it, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.syncItem,
-                  i < SYNC_ITEMS.length - 1 && { borderBottomWidth: 1, borderBottomColor: T.hairline },
-                ]}
-              >
-                <View style={[
-                  styles.syncIcon,
-                  {
-                    borderWidth: it.done ? 0 : 1.5,
-                    borderColor: it.active ? T.accent : T.hairline2,
-                    backgroundColor: it.done ? T.good : 'transparent',
-                  },
-                ]}>
-                  {it.done && <LIcon.Check size={12} color="#fff" stroke={3} />}
-                  {it.active && (
+            {/* Active step label with pulse indicator */}
+            <View style={styles.syncItem}>
+              <View style={[
+                styles.syncIcon,
+                isDone
+                  ? { backgroundColor: T.good, borderWidth: 0 }
+                  : { borderWidth: 1.5, borderColor: T.accent, backgroundColor: 'transparent' },
+              ]}>
+                {isDone
+                  ? <LIcon.Check size={12} color="#fff" stroke={3} />
+                  : (
                     <Animated.View style={[
                       styles.pulseDot,
                       { backgroundColor: T.accent, transform: [{ scale: pulseScale }], opacity: pulseOpacity },
                     ]} />
-                  )}
+                  )
+                }
+              </View>
+              <Text style={[styles.syncText, { color: T.text, fontWeight: '500' }]}>
+                {syncError ? 'Sync failed' : stepLabel}
+              </Text>
+            </View>
+
+            {/* Error detail row */}
+            {syncError != null && (
+              <View style={[styles.syncItem, { borderTopWidth: 1, borderTopColor: T.hairline }]}>
+                <View style={[styles.syncIcon, { backgroundColor: T.bad ?? '#FF3B30', borderWidth: 0 }]}>
+                  <LIcon.Check size={12} color="#fff" stroke={3} />
                 </View>
-                <Text style={[
-                  styles.syncText,
-                  {
-                    color: it.done ? T.text2 : it.active ? T.text : T.text3,
-                    fontWeight: it.active ? '500' : '400',
-                  },
-                ]}>
-                  {it.label}
+                <Text style={[styles.syncText, { color: T.text2 }]} numberOfLines={2}>
+                  {syncError}
                 </Text>
               </View>
-            ))}
+            )}
           </View>
 
           <Text style={[monoStyle(T), styles.encNote]}>End-to-end encrypted · stays on device</Text>
 
-          {/* In real app, auto-navigates on sync complete */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => {
-              // Navigate to root Main screen — replaces full onboarding stack
-              navigation.getParent<any>()?.reset({ index: 0, routes: [{ name: 'Main' }] });
-            }}
-            style={[styles.cta, { backgroundColor: T.accent }]}
-          >
-            <Text style={[styles.ctaText, { color: dark ? '#04181B' : '#fff' }]}>Continue to Lumina</Text>
-            <LIcon.Arrow size={18} color={dark ? '#04181B' : '#fff'} stroke={2.2} />
-          </TouchableOpacity>
+          {/* Error: show Retry button. Success: show disabled "Entering…" label. */}
+          {syncError != null ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => refresh()}
+              style={[styles.cta, { backgroundColor: T.accent }]}
+            >
+              <Text style={[styles.ctaText, { color: dark ? '#04181B' : '#fff' }]}>Retry</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.cta, { backgroundColor: isDone ? T.good : T.surface2 }]}>
+              <Text style={[styles.ctaText, { color: isDone ? '#fff' : T.text3 }]}>
+                {isDone ? 'Entering Lumina…' : 'Syncing…'}
+              </Text>
+              {isDone && <LIcon.Arrow size={18} color="#fff" stroke={2.2} />}
+            </View>
+          )}
         </View>
       </SafeAreaView>
     </View>
