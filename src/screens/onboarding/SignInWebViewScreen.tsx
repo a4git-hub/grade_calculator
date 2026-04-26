@@ -153,6 +153,6 @@ const styles = StyleSheet.create({
     flex: 1, marginHorizontal: 18, marginBottom: 10,
     borderRadius: 16, borderWidth: 1, overflow: 'hidden',
   },
-  loading:    { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  loading:    { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   note:       { fontSize: 11, textAlign: 'center', paddingHorizontal: 24, paddingBottom: 16 },
 });

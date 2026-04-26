@@ -26,7 +26,7 @@ export function WelcomeScreen({ navigation }: Props) {
     <View style={[styles.root, { backgroundColor: T.bg }]}>
       <LinearGradient
         colors={[dark ? `${T.accent}14` : `${T.accent}10`, 'transparent']}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 0.6 }}
       />

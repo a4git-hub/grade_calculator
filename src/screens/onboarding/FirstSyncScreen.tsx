@@ -59,7 +59,7 @@ export function FirstSyncScreen({ navigation }: Props) {
     <View style={[styles.root, { backgroundColor: T.bg }]}>
       <LinearGradient
         colors={[dark ? `${T.accent}1f` : `${T.accent}10`, 'transparent']}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         start={{ x: 0.5, y: 0.18 }}
         end={{ x: 0.5, y: 0.7 }}
       />

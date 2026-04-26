@@ -5,7 +5,8 @@ runs the math your teachers actually use, and helps high-school students plan
 the rest of their semester. Per-class AI assessments use *preset prompts only* —
 no open chat surface to misuse.
 
-Built with **React Native 0.76** on **Expo SDK 52** (bare workflow, TypeScript).
+Built with **React Native 0.85** on **Expo SDK 55** with **React 19** (managed
+workflow with `expo run:*` prebuild, TypeScript strict mode).
 
 ---
 
@@ -15,18 +16,26 @@ Built with **React Native 0.76** on **Expo SDK 52** (bare workflow, TypeScript).
 cd LuminaApp
 npm install
 
-# iOS (requires macOS + Xcode 15+)
-npx expo run:ios
+# iOS (requires macOS + Xcode 16+)
+npm run ios            # debug build → simulator
+npm run ios:release    # release configuration
 
 # Android (requires Android Studio + SDK 34+)
-npx expo run:android
+npm run android
 
 # Metro only (use Expo Go or a dev build)
 npm start
+
+# TypeScript check (no emit)
+npm run typecheck
 ```
 
 The first `expo run:*` command will generate the native `ios/` and `android/`
 folders via prebuild.
+
+> **Heads up:** there is no `npm run ios build` script — `expo run:ios` does
+> not take a `build` subcommand. Use `npm run ios` for a debug build or
+> `npm run ios:release` for a Release-configuration build.
 
 ## Project layout
 
@@ -139,6 +148,78 @@ const [onboardingDone] = useState(true);
 ```bash
 npm run typecheck
 ```
+
+> Note: this project uses the TypeScript types that ship with `react-native`
+> directly (RN 0.71+). Do **not** add `@types/react-native` — it is deprecated
+> and will shadow / conflict with the bundled types.
+
+## Dependency versions
+
+This repo intentionally tracks **latest** versions of React, React Native, and
+the supporting libraries, which can drift slightly ahead of the versions Expo
+SDK 55 was tested against. Current pins:
+
+| Package                          | Version |
+| -------------------------------- | ------- |
+| expo                             | ^55.0.17 |
+| react                            | ^19.2.5 |
+| react-native                     | ^0.85.2 |
+| @react-navigation/native         | ^7.2.2  |
+| @react-navigation/native-stack   | ^7.14.12 |
+| @react-navigation/bottom-tabs    | ^7.15.10 |
+| react-native-safe-area-context   | ^5.7.0  |
+| react-native-screens             | ^4.24.0 |
+| react-native-svg                 | ^15.15.4 |
+| react-native-webview             | ^13.16.1 |
+| expo-blur                        | ^55.0.14 |
+| expo-linear-gradient             | ^55.0.13 |
+| expo-status-bar                  | ^55.0.5 |
+| expo-build-properties            | ^55.0.13 |
+| typescript                       | ^5.9.3  |
+
+`npx expo-doctor` will report the minor/patch drift against Expo's tested
+matrix — that is expected. To realign with Expo's tested set instead, run
+`npx expo install --check`.
+
+### Notes on the upgrade
+
+- **`expo-blur` is no longer a config plugin in SDK 55.** Do **not** add
+  `"expo-blur"` to the `plugins` array in `app.json` — it ships as a regular
+  auto-linked Expo module now and listing it as a plugin will break prebuild
+  with `Cannot find module .../expo-blur/build/BlurView`.
+- **`StyleSheet.absoluteFillObject` was removed in RN 0.85.** Use
+  `StyleSheet.absoluteFill` for direct `style=` props, or inline
+  `{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }` when
+  you need to spread/extend with other style properties inside
+  `StyleSheet.create({...})`.
+
+## Do I need to eject from Expo?
+
+**No.** This project uses Expo's **prebuild** workflow, which is just native
+React Native with `ios/` and `android/` generated on demand from `app.json`.
+The binary that lands on the simulator from `npm run ios` is a normal
+Xcode-built `.app` — there is no Expo Go sandbox at runtime, and every
+autolinked native module (Expo or community) works without manual Xcode
+wiring.
+
+The `expo eject` command no longer exists. The modern model is a sliding
+scale:
+
+| Mode                       | What it gives you                                                                | When to use                                       |
+| -------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Expo Go                    | JS-only, runs inside the prebuilt Expo Go app                                    | Pure-JS prototypes only                           |
+| **Prebuild (this app)**    | Full native build via `expo run:*`. All autolinked native modules work.          | 99% of production Expo apps                       |
+| Bare / fully ejected       | You commit `ios/` + `android/` and stop running `expo prebuild`                  | Forking a native lib, or non-autolinked native code |
+
+Eject only if you need to (a) fork a native library's source, (b) wire a
+non-autolinked native lib by hand, or (c) edit `Info.plist` /
+`AndroidManifest.xml` in ways that `app.json` + `expo-build-properties` and
+config plugins can't express. None of those apply to LuminaApp today, and the
+roadmap features (push, camera, secure storage, IC cookie reading) all have
+first-party Expo or autolinking-compatible community modules.
+
+For production / TestFlight builds, use **EAS Build** (`eas build --platform ios`)
+rather than ejecting — it runs the same prebuild + Xcode pipeline on Expo's CI.
 
 ## Status
 

@@ -21,8 +21,6 @@
       },
       "package": "com.lumina.grades"
     },
-    "plugins": [
-      "expo-blur"
-    ]
+    "plugins": []
   }
 }
