@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
+import { useClasses } from '../../context/DataContext';
 
 const EXISTING = [
   { name: 'Ch 5 Test', score: '40.5 / 58', pct: '69.8%', pos: 'warn' as const, on: true  },
@@ -20,6 +21,7 @@ const TARGETS = [
 
 export function WhatIfScreen() {
   const { T, dark } = useTheme();
+  const classes = useClasses();
   const [toggles, setToggles] = useState(EXISTING.map(a => a.on));
   const [sliderVal] = useState(80);
 
@@ -29,6 +31,23 @@ export function WhatIfScreen() {
     setToggles(next);
   };
 
+  if (classes.length === 0) {
+    return (
+      <View style={[styles.root, { backgroundColor: T.bg }]}>
+        <SafeAreaView style={styles.safe} edges={['top']}>
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyText, { color: T.text2 }]}>No classes yet</Text>
+            <Text style={[styles.emptySub, { color: T.text3 }]}>
+              Sync your grades to use the What-if calculator.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  const activeClass = classes[0];
+
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -37,7 +56,7 @@ export function WhatIfScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[monoStyle(T), styles.kicker]}>What-if · Pre Calc / Trig Hon</Text>
+          <Text style={[monoStyle(T), styles.kicker]}>What-if · {activeClass.name}</Text>
           <Text style={[styles.title, { color: T.text }]}>Simulate the next 4 weeks.</Text>
           <Text style={[styles.sub, { color: T.text2 }]}>
             Toggle assignments, drop low scores, or invent fake ones to see grade impact live.
@@ -189,6 +208,9 @@ export function WhatIfScreen() {
 const styles = StyleSheet.create({
   root:  { flex: 1 },
   safe:  { flex: 1 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  emptyText: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
+  emptySub:  { fontSize: 14, lineHeight: 20, textAlign: 'center' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 110 },
   kicker: { marginBottom: 6 },
