@@ -110,15 +110,19 @@ export function IcSpikeScreen({ navigation }: Props) {
         {/* Capture button */}
         <TouchableOpacity
           onPress={runSpike}
-          disabled={phase !== 'logged-in'}
+          disabled={phase === 'running'}
           activeOpacity={0.85}
           style={[
             styles.button,
-            { backgroundColor: phase === 'logged-in' ? T.accent : T.surface3 },
+            { backgroundColor: phase === 'running' ? T.surface3 : T.accent },
           ]}
         >
-          <Text style={[styles.buttonText, { color: phase === 'logged-in' ? '#fff' : T.text3 }]}>
-            {phase === 'running' ? 'Running…' : 'Capture cookies & test fetch'}
+          <Text style={[styles.buttonText, { color: phase === 'running' ? T.text3 : '#fff' }]}>
+            {phase === 'running'
+              ? 'Running…'
+              : phase === 'logged-in'
+                ? 'Capture cookies & test fetch'
+                : 'Force capture (login auto-detect failed)'}
           </Text>
         </TouchableOpacity>
 
@@ -128,6 +132,14 @@ export function IcSpikeScreen({ navigation }: Props) {
           contentContainerStyle={{ padding: 14 }}
           showsVerticalScrollIndicator
         >
+          {/* Nav log is always visible — diagnostic for predicate mismatches. */}
+          <Text style={[styles.sectionLabel, { color: T.text2 }]}>Recent navigation URLs</Text>
+          <View style={[styles.codeBlock, { backgroundColor: T.surface, borderColor: T.hairline }]}>
+            <Text style={[styles.code, { color: T.text3 }]} selectable>
+              {navLog.length ? navLog.join('\n') : '(none yet — sign in via the WebView above)'}
+            </Text>
+          </View>
+
           {phase === 'done' && (
             <>
               <ResultRow
@@ -170,12 +182,6 @@ export function IcSpikeScreen({ navigation }: Props) {
                 </Text>
               </View>
 
-              <Text style={[styles.sectionLabel, { color: T.text2 }]}>Recent navigation URLs</Text>
-              <View style={[styles.codeBlock, { backgroundColor: T.surface, borderColor: T.hairline }]}>
-                <Text style={[styles.code, { color: T.text3 }]} selectable>
-                  {navLog.length ? navLog.join('\n') : '(none)'}
-                </Text>
-              </View>
             </>
           )}
         </ScrollView>
