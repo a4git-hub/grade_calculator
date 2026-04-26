@@ -47,6 +47,17 @@ export class IcClient {
     return this.getJson<RawRecentlyScored[]>(`/campus/api/portal/assignment/recentlyScored${q}`);
   }
 
+  /**
+   * Full assignment list for the student — every section, every assignment
+   * since school year start. Same row shape as recentlyScored but no
+   * modifiedDate filter (returns everything). Preferred over recentlyScored
+   * for any "complete picture" UI; recentlyScored is only useful as a
+   * delta-since-X optimization which we don't need under in-memory-only.
+   */
+  getAssignmentListView(): Promise<RawRecentlyScored[]> {
+    return this.getJson<RawRecentlyScored[]>('/campus/api/portal/assignment/listView');
+  }
+
   getRoster(dateIso?: string): Promise<RawRosterEntry[]> {
     const expand = '_expand=' + encodeURIComponent('{sectionPlacements-{term}}');
     const date = dateIso ? `&_date=${encodeURIComponent(dateIso)}` : '';

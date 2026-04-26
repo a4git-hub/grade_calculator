@@ -64,13 +64,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setState(s => ({ ...s, syncStep: 'grades' }));
       const gradesRaw = await client.getGrades();
       setState(s => ({ ...s, syncStep: 'attention' }));
-      // recentlyScored requires a modifiedDate (returns 422 without it — IC
-      // treats it as a delta endpoint). 60 days back covers a typical
-      // grading window without flooding the response with stale items.
-      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 19); // → "YYYY-MM-DDTHH:mm:ss" (no ms, no Z — IC's format)
-      const recentRaw = await client.getRecentlyScored(sixtyDaysAgo);
+      // listView returns the full assignment list (every section, every
+      // assignment, no date filter). Same row shape as recentlyScored, but
+      // complete — preferred under in-memory-only since we have no need
+      // for a delta-since-X optimization.
+      const recentRaw = await client.getAssignmentListView();
       setState(s => ({ ...s, syncStep: 'gpa' }));
       // IC's official GPA endpoint. Falls back to computed if unavailable.
       let gpaRaw: Awaited<ReturnType<typeof client.getGpa>> | null = null;
