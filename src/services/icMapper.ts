@@ -314,16 +314,55 @@ export function mapCategories(raw: RawCategory[]): Array<{ name: string; weight:
 }
 
 /**
+ * Build a per-section grade trajectory from the assignment list. Each scored
+ * assignment becomes a HistoryPoint sorted by scoreModifiedDate. We use the
+ * raw assignment percentage rather than computing a running cumulative
+ * average — IC's actual grade calc applies category weights, drop policies,
+ * and multipliers server-side, and approximating that locally produces
+ * misleading numbers. Plotting per-assignment percentages directly is the
+ * honest visualization: it shows the student's score variance over time.
+ */
+function buildHistoryForSection(items: RawRecentlyScored[]): Array<{ d: string; v: number }> {
+  const dated = items
+    .filter(it => it.scoreModifiedDate && it.scorePercentage != null)
+    .map(it => {
+      const v = parseFloat(it.scorePercentage ?? '');
+      return Number.isFinite(v) ? { date: it.scoreModifiedDate, v } : null;
+    })
+    .filter((x): x is { date: string; v: number } => x !== null);
+
+  dated.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Trim to last 12 points so the sparkline doesn't get too dense.
+  const recent = dated.slice(-12);
+
+  return recent.map(({ date, v }, i) => {
+    // Render as "Mon DD" for the first/last labels in the sparkline footer.
+    // Intermediate points just need the date string; the chart plots them.
+    const d = formatChartDate(date, i === 0 || i === recent.length - 1);
+    return { d, v: Math.round(v * 100) / 100 };
+  });
+}
+
+const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatChartDate(iso: string, labeled: boolean): string {
+  if (!labeled) return iso.slice(0, 10); // Hidden axis points: cheap ISO date string
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return `${MON_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+/**
  * Build subject detail map keyed by sectionID.
  *
  * Sources data from up to three inputs:
  *   - grades:     enrollment + course list (which sections to include)
- *   - recent:     listView assignments → per-section assignments[]
+ *   - recent:     listView assignments → per-section assignments[] AND history[]
  *   - categoriesBySection: /grades/categories result → per-section categories[]
  *
- * History stays empty until /grades/detail/{sid} is wired. The other two
- * arrays populate when their corresponding endpoints have been fetched;
- * they default to [] gracefully if not.
+ * categories[].pct + .count stay 0 (server-side computed; not in any endpoint
+ * we have). Everything else populates from the endpoints we already call.
  */
 export function mapGradesToSubjectDetails(
   raw: RawGradesResponse,
@@ -341,7 +380,7 @@ export function mapGradesToSubjectDetails(
       const cats = catsBySid[sid];
       out[sid] = {
         categories: cats ? mapCategories(cats) : [],
-        history: [],
+        history: buildHistoryForSection(recentForCourse),
         assignments: recentForCourse.map(recentlyScoredToAssignment),
       };
     }
