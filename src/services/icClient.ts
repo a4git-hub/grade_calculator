@@ -1,6 +1,6 @@
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored, RawRosterEntry,
-  RawGpaResponse,
+  RawGpaResponse, RawCategoriesResponse,
 } from './icTypes';
 
 /**
@@ -72,6 +72,18 @@ export class IcClient {
    */
   getGpa(): Promise<RawGpaResponse> {
     return this.getJson<RawGpaResponse>('/campus/api/campus/grading/gpas/my/gpa');
+  }
+
+  /**
+   * Per-section category weights ("Tests 40%, Quizzes 20%, ..."). Note the
+   * path is /campus/api/campus/grading/categories — not /instruction/categories
+   * which is a different (admin-side) endpoint. Returns category definitions
+   * only; the student's per-category percent score comes from /grades/detail.
+   */
+  getCategoriesForSection(sectionID: number | string): Promise<RawCategoriesResponse> {
+    return this.getJson<RawCategoriesResponse>(
+      `/campus/api/campus/grading/categories?sectionID=${encodeURIComponent(String(sectionID))}`,
+    );
   }
 }
 

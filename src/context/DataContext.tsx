@@ -7,7 +7,7 @@ import {
   mapRecentlyScoredToAttention, computeGpa, mapIcGpa, type GpaSummary,
 } from '../services/icMapper';
 
-export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'gpa' | 'done';
+export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'categories' | 'gpa' | 'done';
 
 interface DataState {
   client: IcClient | null;
@@ -69,6 +69,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // complete — preferred under in-memory-only since we have no need
       // for a delta-since-X optimization.
       const recentRaw = await client.getAssignmentListView();
+      setState(s => ({ ...s, syncStep: 'categories' }));
+      // Fan-fetch categories for every section in parallel. The grades response
+      // gives us the section IDs; categories endpoint is per-section.
+      const sectionIds = gradesRaw
+        .flatMap(e => e.courses)
+        .filter(c => !c.dropped)
+        .map(c => c.sectionID);
+      const categoriesBySection: Record<string, Awaited<ReturnType<typeof client.getCategoriesForSection>>> = {};
+      const catResults = await Promise.allSettled(
+        sectionIds.map(sid => client.getCategoriesForSection(sid).then(cats => ({ sid, cats }))),
+      );
+      for (const r of catResults) {
+        if (r.status === 'fulfilled') {
+          categoriesBySection[String(r.value.sid)] = r.value.cats;
+        } else {
+          // Non-fatal per-section failure: just log and continue. The
+          // section's categories[] stays empty.
+          // eslint-disable-next-line no-console
+          console.log('[DataContext] categories fetch failed for one section:', r.reason);
+        }
+      }
+
       setState(s => ({ ...s, syncStep: 'gpa' }));
       // IC's official GPA endpoint. Falls back to computed if unavailable.
       let gpaRaw: Awaited<ReturnType<typeof client.getGpa>> | null = null;
@@ -82,7 +104,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       const user = mapUserAccount(userRaw, gradesRaw);
       const classes = mapGradesToClasses(gradesRaw, recentRaw);
-      const subjectDetails = mapGradesToSubjectDetails(gradesRaw, recentRaw);
+      const subjectDetails = mapGradesToSubjectDetails(gradesRaw, recentRaw, categoriesBySection);
       const attention = mapRecentlyScoredToAttention(recentRaw);
       const computedGpa = computeGpa(classes);
       const gpa = gpaRaw ? mapIcGpa(gpaRaw, computedGpa) : computedGpa;

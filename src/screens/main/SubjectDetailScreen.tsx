@@ -11,7 +11,8 @@ import { monoStyle, gradeColor, Fonts } from '../../tokens';
 import { Sparkline } from '../../components/Sparkline';
 import { AISheet } from '../../components/AISheet';
 import { LIcon } from '../../components/LIcon';
-import { useClasses, useSubjectDetail } from '../../context/DataContext';
+import { useClasses, useSubjectDetail, useData } from '../../context/DataContext';
+import { timeAgo } from '../../lib/time';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'SubjectDetail'>;
 
@@ -22,6 +23,7 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
   const classes = useClasses();
   const subject = classes.find(c => c.id === route.params.classId) ?? null;
   const detail  = useSubjectDetail(route.params.classId) ?? { categories: [], history: [], assignments: [] };
+  const { syncedAt } = useData();
   const col     = gradeColor(T, subject?.color ?? 'good');
 
   if (!subject) {
@@ -76,39 +78,48 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                 <LIcon.TrendDown size={11} color={T.bad} stroke={2.4} />
                 <Text style={[styles.trendText, { color: T.bad }]}>{subject.trend}% · 7d</Text>
               </View>
-              <Text style={[styles.syncNote, { color: T.text3 }]}>Last sync · 2m ago</Text>
+              <Text style={[styles.syncNote, { color: T.text3 }]}>Last sync · {timeAgo(syncedAt)}</Text>
             </View>
           </View>
 
           {/* Categories */}
           <Text style={[styles.sectionLabel, { color: T.text2 }]}>Categories</Text>
           <View style={[styles.card, { backgroundColor: T.surface, borderColor: T.hairline }]}>
-            {detail.categories.map((cat, i) => {
-              const catCol = cat.pct >= 85 ? T.good : cat.pct >= 75 ? T.warn : T.bad;
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.catRow,
-                    i < detail.categories.length - 1 && { borderBottomWidth: 1, borderBottomColor: T.hairline },
-                  ]}
-                >
-                  <View style={styles.catInfo}>
-                    <View style={styles.catLabelRow}>
-                      <Text style={[styles.catName, { color: T.text }]}>{cat.name}</Text>
-                      <Text style={[monoStyle(T), styles.catWeight]}>{cat.weight}% weight</Text>
+            {detail.categories.length === 0 ? (
+              <Text style={[styles.emptyNote, { color: T.text3 }]}>No data yet</Text>
+            ) : (
+              detail.categories.map((cat, i) => {
+                const hasScore = cat.pct > 0;
+                const catCol = !hasScore ? T.text3 : cat.pct >= 85 ? T.good : cat.pct >= 75 ? T.warn : T.bad;
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.catRow,
+                      i < detail.categories.length - 1 && { borderBottomWidth: 1, borderBottomColor: T.hairline },
+                    ]}
+                  >
+                    <View style={styles.catInfo}>
+                      <View style={styles.catLabelRow}>
+                        <Text style={[styles.catName, { color: T.text }]}>{cat.name}</Text>
+                        <Text style={[monoStyle(T), styles.catWeight]}>{cat.weight}% weight</Text>
+                      </View>
+                      <View style={[styles.progressTrack, { backgroundColor: T.surface3 }]}>
+                        <View style={[styles.progressFill, { width: `${hasScore ? cat.pct : 0}%`, backgroundColor: catCol }]} />
+                      </View>
                     </View>
-                    <View style={[styles.progressTrack, { backgroundColor: T.surface3 }]}>
-                      <View style={[styles.progressFill, { width: `${cat.pct}%`, backgroundColor: catCol }]} />
+                    <View style={styles.catScore}>
+                      <Text style={[styles.catPct, { color: hasScore ? T.text : T.text3 }]}>
+                        {hasScore ? `${cat.pct}%` : '—'}
+                      </Text>
+                      {cat.count > 0 && (
+                        <Text style={[styles.catCount, { color: T.text3 }]}>{cat.count} items</Text>
+                      )}
                     </View>
                   </View>
-                  <View style={styles.catScore}>
-                    <Text style={[styles.catPct, { color: T.text }]}>{cat.pct}%</Text>
-                    <Text style={[styles.catCount, { color: T.text3 }]}>{cat.count} items</Text>
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })
+            )}
           </View>
 
           {/* Trajectory */}

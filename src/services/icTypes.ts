@@ -216,6 +216,47 @@ export interface RawRosterEntry {
 }
 
 /**
+ * Per-section category definition from /campus/api/campus/grading/categories.
+ * Defines the weighted buckets a teacher uses for grade calculation
+ * (e.g. Tests 40%, Quizzes 20%, Final 20%, Homework 15%, Classwork 5%).
+ *
+ * Note: this endpoint provides DEFINITIONS only — name + weight + drop policy.
+ * The student's per-category percent score is NOT here; that comes from
+ * /grades/detail/{sid} (computed server-side because it depends on which
+ * assignments are dropped, multipliers, etc.).
+ */
+export interface RawCategory {
+  /** Stable IDs for joining with assignments (when assignments expose a categoryID). */
+  categoryID: number;
+  sectionID: number;
+  /** Display name: "Tests", "Homework", "Quizzes", etc. */
+  name: string;
+  /** Weight percentage of this category in the course's grade. Sums to 100 across all categories. */
+  weight: number;
+  /** Display-order sequence (often all 0). */
+  seq: number;
+  /**
+   * If true, IC drops the lowest-scored assignment in this category from
+   * the average. UX hint we can surface to the student.
+   */
+  dropLowest: boolean;
+  calcExclude?: boolean;
+  curveID?: number | null;
+  defaultMarkGroupID?: number | null;
+  defaultMultiplier?: number;
+  defaultPoints?: number | null;
+  defaultScoringType?: string | null;
+  districtManaged?: boolean;
+  districtSourced?: boolean;
+  groupCourseID?: number | null;
+  hidePortal?: boolean | null;
+  modifiedByID?: number;
+  modifiedDate?: string;
+}
+
+export type RawCategoriesResponse = RawCategory[];
+
+/**
  * IC's official GPA record. The endpoint returns an array because IC supports
  * multiple GPA flavors (Cumulative, term-specific, with/without bonus).
  *

@@ -3,7 +3,7 @@ import type {
 } from '../types';
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored,
-  RawGradingTask, UserProfile, RawGpaResponse,
+  RawGradingTask, UserProfile, RawGpaResponse, RawCategory,
 } from './icTypes';
 
 export interface GpaSummary {
@@ -291,27 +291,56 @@ export function mapGradesToClasses(
 }
 
 /**
+ * Map IC's per-section category definitions into the app's Category shape.
+ * pct + count default to 0 because the categories endpoint provides
+ * DEFINITIONS only (name + weight). Per-category student performance lives
+ * in /grades/detail/{sid} — when wired, those fields fill in from there.
+ */
+export function mapCategories(raw: RawCategory[]): Array<{ name: string; weight: number; pct: number; count: number }> {
+  return raw
+    .slice()
+    .sort((a, b) => {
+      // Higher-weighted categories first (Tests before Classwork). Tie-break on seq, then name.
+      if (b.weight !== a.weight) return b.weight - a.weight;
+      if (a.seq !== b.seq) return a.seq - b.seq;
+      return a.name.localeCompare(b.name);
+    })
+    .map(c => ({
+      name: c.name,
+      weight: Math.round(c.weight * 100) / 100, // IC sends like 40.000 → render as 40
+      pct: 0,    // populated when /grades/detail/{sid} lands
+      count: 0,  // ditto
+    }));
+}
+
+/**
  * Build subject detail map keyed by sectionID.
  *
- * In v1 (this phase) we populate `assignments` from the already-fetched
- * recentlyScored data. Categories + history still require per-section
- * /categories and /grades/detail/{sid} endpoints — those land in Phase 1.5
- * once their response schemas are captured. Empty arrays render as "no data
- * yet" UI states cleanly.
+ * Sources data from up to three inputs:
+ *   - grades:     enrollment + course list (which sections to include)
+ *   - recent:     listView assignments → per-section assignments[]
+ *   - categoriesBySection: /grades/categories result → per-section categories[]
+ *
+ * History stays empty until /grades/detail/{sid} is wired. The other two
+ * arrays populate when their corresponding endpoints have been fetched;
+ * they default to [] gracefully if not.
  */
 export function mapGradesToSubjectDetails(
   raw: RawGradesResponse,
   recent?: RawRecentlyScored[],
+  categoriesBySection?: Record<string, RawCategory[]>,
 ): Record<string, SubjectDetail> {
   const recentBySid = recent ? groupRecentBySection(recent) : {};
+  const catsBySid = categoriesBySection ?? {};
   const out: Record<string, SubjectDetail> = {};
   for (const enrollment of raw) {
     for (const course of enrollment.courses) {
       if (course.dropped) continue;
       const sid = String(course.sectionID);
       const recentForCourse = recentBySid[sid] ?? [];
+      const cats = catsBySid[sid];
       out[sid] = {
-        categories: [],
+        categories: cats ? mapCategories(cats) : [],
         history: [],
         assignments: recentForCourse.map(recentlyScoredToAssignment),
       };
