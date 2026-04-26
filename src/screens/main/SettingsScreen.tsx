@@ -1,14 +1,11 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/DataContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import { MockUser } from '../../data/mock';
 
 type IconKey = keyof typeof LIcon;
 
@@ -57,22 +54,7 @@ function SettingsGroup({ title, T, children }: { title: string; T: any; children
 
 export function SettingsScreen() {
   const { T, dark, toggleTheme } = useTheme();
-  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const tapCount = useRef(0);
-  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const onVersionTap = () => {
-    tapCount.current += 1;
-    if (tapTimer.current) clearTimeout(tapTimer.current);
-    if (tapCount.current >= 5) {
-      tapCount.current = 0;
-      rootNav.navigate('IcSpike');
-      return;
-    }
-    tapTimer.current = setTimeout(() => {
-      tapCount.current = 0;
-    }, 2000);
-  };
+  const user = useUser();
 
   const densityToggle = (
     <View style={[styles.segControl, { backgroundColor: T.surface3 }]}>
@@ -105,12 +87,12 @@ export function SettingsScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.avatar}
             >
-              <Text style={styles.avatarText}>{MockUser.initials}</Text>
+              <Text style={styles.avatarText}>{user?.initials ?? '?'}</Text>
             </LinearGradient>
             <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: T.text }]}>{MockUser.fullName}</Text>
+              <Text style={[styles.profileName, { color: T.text }]}>{user?.fullName ?? '—'}</Text>
               <Text style={[styles.profileSub, { color: T.text3 }]}>
-                {MockUser.school} · {MockUser.gradeLevel}th grade
+                {user?.school ?? '—'} · {user?.gradeLevel ?? '—'}th grade
               </Text>
               <View style={styles.profileMeta}>
                 <View style={[styles.syncedBadge, { backgroundColor: T.goodSoft }]}>
@@ -168,9 +150,7 @@ export function SettingsScreen() {
             />
           </SettingsGroup>
 
-          <TouchableOpacity onPress={onVersionTap} activeOpacity={1}>
-            <Text style={[monoStyle(T), styles.version]}>Lumina · v1.0 · build 240426</Text>
-          </TouchableOpacity>
+          <Text style={[monoStyle(T), styles.version]}>Lumina · v1.0 · build 240426</Text>
 
           <View style={{ height: 40 }} />
         </ScrollView>
