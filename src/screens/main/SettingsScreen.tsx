@@ -3,9 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
-import { useUser } from '../../context/DataContext';
+import { useUser, useData } from '../../context/DataContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
+import { timeAgo } from '../../lib/time';
 
 type IconKey = keyof typeof LIcon;
 
@@ -55,6 +56,7 @@ function SettingsGroup({ title, T, children }: { title: string; T: any; children
 export function SettingsScreen() {
   const { T, dark, toggleTheme } = useTheme();
   const user = useUser();
+  const { syncedAt } = useData();
 
   const densityToggle = (
     <View style={[styles.segControl, { backgroundColor: T.surface3 }]}>
@@ -98,7 +100,7 @@ export function SettingsScreen() {
                 <View style={[styles.syncedBadge, { backgroundColor: T.goodSoft }]}>
                   <Text style={[styles.syncedText, { color: T.good }]}>Synced</Text>
                 </View>
-                <Text style={[styles.syncedTime, { color: T.text3 }]}>2m ago</Text>
+                <Text style={[styles.syncedTime, { color: T.text3 }]}>{timeAgo(syncedAt)}</Text>
               </View>
             </View>
             <LIcon.Chevron size={16} color={T.text3} />

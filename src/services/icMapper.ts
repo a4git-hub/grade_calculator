@@ -75,35 +75,51 @@ export function isHonorsCourse(courseName: string): boolean {
 /**
  * Map IC's official GPA endpoint into the app's GpaSummary shape.
  *
- * Strategy:
- *   - Prefer Cumulative entries (most students view this)
- *   - Within those, find the unweighted=true variant for `uw`,
- *     unweighted=false for `w`
- *   - When IC only provides one variant, fill the other from the fallback
- *     (computeGpa's best-effort heuristic from class list)
- *   - Trend stays from fallback (GPA endpoint doesn't expose week-over-week)
+ * IC returns an array containing both Cumulative entries (UW + W) and per-Term
+ * entries (T1, T2, T3, T4 × UW/W). We extract:
+ *   - uw / w: from the two Cumulative entries (matches what students see in IC)
+ *   - trend:  weighted-GPA delta between the two most recent Term entries.
+ *             Replaces the previously-mocked "this week +0.4" with a true
+ *             term-over-term signal. Falls back to 0 when fewer than 2 terms
+ *             exist (e.g. start of school year).
  *
  * IC's GPA reflects district-specific policy (which courses count, honors
- * bump amount, dual-enrollment treatment) that our heuristic can't know,
- * so it ALWAYS wins when present.
+ * bump amount, dual-enrollment treatment) so it ALWAYS wins over our
+ * heuristic computeGpa when present.
  */
 export function mapIcGpa(raw: RawGpaResponse, fallback: GpaSummary): GpaSummary {
   if (!Array.isArray(raw) || raw.length === 0) return fallback;
-  const cumulative = raw.filter(r => r.type === 'Cumulative');
-  const source = cumulative.length > 0 ? cumulative : raw;
-  const uw = source.find(r => r.unweighted === true);
-  const w = source.find(r => r.unweighted === false);
-  const parse = (entry: typeof uw | typeof w): number => {
-    if (!entry) return NaN;
-    const n = parseFloat(entry.gpa);
+  const parse = (s: string | null | undefined): number => {
+    const n = parseFloat(s ?? '');
     return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
   };
-  const uwParsed = parse(uw);
-  const wParsed = parse(w);
+
+  // --- Cumulative GPAs (uw + w) -------------------------------------------
+  const cumulative = raw.filter(r => r.type === 'Cumulative');
+  const cumSource = cumulative.length > 0 ? cumulative : raw;
+  const cumUwRaw = cumSource.find(r => r.unweighted === true);
+  const cumWRaw = cumSource.find(r => r.unweighted === false);
+  const cumUw = cumUwRaw ? parse(cumUwRaw.gpa) : NaN;
+  const cumW = cumWRaw ? parse(cumWRaw.gpa) : NaN;
+
+  // --- Term-over-term trend (latest Term − previous Term, weighted) -------
+  const weightedTerms = raw
+    .filter(r => r.type === 'Term' && r.unweighted === false && r.termSeq != null)
+    .slice()
+    .sort((a, b) => (b.termSeq ?? 0) - (a.termSeq ?? 0));
+  let trend = fallback.trend;
+  if (weightedTerms.length >= 2) {
+    const latest = parse(weightedTerms[0]!.gpa);
+    const prev = parse(weightedTerms[1]!.gpa);
+    if (Number.isFinite(latest) && Number.isFinite(prev)) {
+      trend = Math.round((latest - prev) * 100) / 100;
+    }
+  }
+
   return {
-    uw: Number.isNaN(uwParsed) ? fallback.uw : uwParsed,
-    w: Number.isNaN(wParsed) ? fallback.w : wParsed,
-    trend: fallback.trend,
+    uw: Number.isNaN(cumUw) ? fallback.uw : cumUw,
+    w: Number.isNaN(cumW) ? fallback.w : cumW,
+    trend,
   };
 }
 

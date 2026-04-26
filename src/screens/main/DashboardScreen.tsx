@@ -7,7 +7,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { ClassCard } from '../../components/ClassCard';
 import { LIcon } from '../../components/LIcon';
-import { useClasses, useUser, useGpa } from '../../context/DataContext';
+import { useClasses, useUser, useGpa, useData } from '../../context/DataContext';
+import { timeAgo } from '../../lib/time';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'Dashboard'>;
 
@@ -35,6 +36,7 @@ export function DashboardScreen({ navigation }: Props) {
   const user = useUser();
   const classes = useClasses();
   const gpa = useGpa();
+  const { syncedAt } = useData();
   const today = formatToday();
   const summary = buildSummary(classes);
   const trendUp = gpa.trend >= 0;
@@ -52,7 +54,7 @@ export function DashboardScreen({ navigation }: Props) {
             <Text style={[monoStyle(T)]}>{today}</Text>
             <View style={[styles.syncBadge, { backgroundColor: T.goodSoft }]}>
               <View style={[styles.syncDot, { backgroundColor: T.good }]} />
-              <Text style={[styles.syncText, { color: T.good }]}>Synced · just now</Text>
+              <Text style={[styles.syncText, { color: T.good }]}>Synced · {timeAgo(syncedAt)}</Text>
             </View>
           </View>
 
@@ -76,7 +78,7 @@ export function DashboardScreen({ navigation }: Props) {
             </View>
             <View style={[styles.gpaDivider, { borderColor: T.hairline }]} />
             <View style={styles.gpaCell}>
-              <Text style={[monoStyle(T)]}>This week</Text>
+              <Text style={[monoStyle(T)]}>Term trend</Text>
               <View style={styles.trendRow}>
                 <LIcon.Trend size={14} color={trendUp ? T.good : T.bad} stroke={2.4} />
                 <Text style={[styles.gpaVal, { color: trendUp ? T.good : T.bad }]}>
