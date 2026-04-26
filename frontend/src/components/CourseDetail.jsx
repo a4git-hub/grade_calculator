@@ -252,11 +252,11 @@ export default function CourseDetail({ course, onBack }) {
           <div style={{ textAlign: 'right', flex: '1 1 100%' }}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Current Grade</span><br />
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <span className={activeGradeValue >= 90 ? 'grade-A' : activeGradeValue >= 80 ? 'grade-B' : activeGradeValue >= 70 ? 'grade-C' : activeGradeValue >= 60 ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+              <span className={displayLetter.startsWith('A') ? 'grade-A' : displayLetter.startsWith('B') ? 'grade-B' : displayLetter.startsWith('C') ? 'grade-C' : displayLetter.startsWith('D') ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
                 {displayLetter}
               </span>
               <span style={{ fontSize: '1.8rem', fontWeight: '300', color: 'var(--text-secondary)', lineHeight: '1' }}>·</span>
-              <span className={activeGradeValue >= 90 ? 'grade-A' : activeGradeValue >= 80 ? 'grade-B' : activeGradeValue >= 70 ? 'grade-C' : activeGradeValue >= 60 ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+              <span className={displayLetter.startsWith('A') ? 'grade-A' : displayLetter.startsWith('B') ? 'grade-B' : displayLetter.startsWith('C') ? 'grade-C' : displayLetter.startsWith('D') ? 'grade-D' : 'grade-F'} style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
                 {displayGrade}
               </span>
               {/* Dynamic Last Updated indicator */}

@@ -102,7 +102,7 @@ export default function Login({ onLogin, autoSync = false }) {
                                 window.ic_running = true;
                                 localStorage.removeItem('ic_intercepted_grades_uid' + ${sessionId});
                                 
-                                // Heuristic 4: Background Network Monkey Patch
+                                /* Heuristic 4: Background Network Monkey Patch */
                                 window.ic_intercepted_pId = null;
                                 var oldOpen = XMLHttpRequest.prototype.open;
                                 XMLHttpRequest.prototype.open = function(method, url) {
@@ -127,7 +127,7 @@ export default function Login({ onLogin, autoSync = false }) {
                                     let pId = window.ic_intercepted_pId;
                                     
                                     try {
-                                        // Heuristic 1: Raw HTML String Regex
+                                        /* Heuristic 1: Raw HTML String Regex */
                                         if (!pId) {
                                             var htmlStr = document.documentElement.innerHTML;
                                             var match = htmlStr.match(/personID['"\\\\]*\\s*[:=]\\s*['"\\\\]*(\\d+)/i) || 
@@ -136,7 +136,7 @@ export default function Login({ onLogin, autoSync = false }) {
                                             if (match && match[1]) pId = match[1];
                                         } 
                                         
-                                        // Heuristic 2: Hidden DOM Links
+                                        /* Heuristic 2: Hidden DOM Links */
                                         if (!pId) {
                                             var links = document.querySelectorAll('a[href*="personID="]');
                                             if (links.length > 0) {
@@ -145,7 +145,7 @@ export default function Login({ onLogin, autoSync = false }) {
                                             }
                                         }
                                         
-                                        // Heuristic 3: Blind API fetch to student listing
+                                        /* Heuristic 3: Blind API fetch to student listing */
                                         if (!pId) {
                                             try {
                                                 var bUrl = window.location.origin;
@@ -161,11 +161,11 @@ export default function Login({ onLogin, autoSync = false }) {
 
                                         if (pId) {
                                             clearInterval(timer);
-                                            // Always request fresh data — never serve cached grades
+                                            /* Always request fresh data — never serve cached grades */
                                             var hdrs = { 'Accept': 'application/json', 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' };
                                             var bUrl = window.location.origin;
                                             
-                                            // Execute Extraction Payload!
+                                            /* Execute Extraction Payload! */
                                             var dynamicName = 'Student';
                                             try {
                                                 var sRes2 = await oldFetch(bUrl + '/campus/resources/portal/students?_t=' + Date.now(), { headers: hdrs });
@@ -211,14 +211,14 @@ export default function Login({ onLogin, autoSync = false }) {
                                             }
                                             
                                             var payload = { name: dynamicName, student_id: pId, courses: roster, assignments: assign || [], grades: grades || [], categories: cats, detail_data: dets };
-                                            localStorage.setItem('ic_intercepted_grades_uid' + \${sessionId}, JSON.stringify({ status: 'success', data: [payload] }));
+                                            localStorage.setItem('ic_intercepted_grades_uid' + ${sessionId}, JSON.stringify({ status: 'success', data: [payload] }));
                                         } else if (attempts > 15) {
                                             clearInterval(timer);
-                                            localStorage.setItem('ic_intercepted_grades_uid' + \${sessionId}, JSON.stringify({ status: 'error', message: 'Could not find Student ID in page source.' }));
+                                            localStorage.setItem('ic_intercepted_grades_uid' + ${sessionId}, JSON.stringify({ status: 'error', message: 'Could not find Student ID in page source.' }));
                                         }
                                     } catch (err) {
                                         clearInterval(timer);
-                                        localStorage.setItem('ic_intercepted_grades_uid' + \${sessionId}, JSON.stringify({ status: 'error', message: err.toString() }));
+                                        localStorage.setItem('ic_intercepted_grades_uid' + ${sessionId}, JSON.stringify({ status: 'error', message: err.toString() }));
                                     }
                                 }, 1000);
                             }; true;`;
@@ -387,20 +387,48 @@ export default function Login({ onLogin, autoSync = false }) {
 
     if (!showSyncForm) {
         return (
-            <div className="login-container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', gap: '2rem' }}>
-                <div style={{ textAlign: 'center' }}>
-                    <h1 style={{ fontSize: '3rem', color: 'var(--primary-color)', marginBottom: '1rem', textShadow: '0 0 20px rgba(99, 102, 241, 0.3)' }}>Lumina</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', maxWidth: '500px', margin: '0 auto' }}>Your AI-powered grade advisor. Sync live from Infinite Campus and ask Lumina anything.</p>
-                </div>
-                <button onClick={() => setShowSyncForm(true)} className="btn-primary" style={{ fontSize: '1.2rem', padding: '1rem 2.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                    Sync via ClassLink SSO
-                </button>
-                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Current District: <span style={{ color: 'var(--primary-color)' }}>{districtName}</span></span>
-                    <button onClick={handleFindDistrict} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                        Didn't see your district? Find it here
+            <div className="login-container animate-slide-up" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', gap: '2rem' }}>
+                <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '450px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
+                    <div>
+                        <h1 style={{ 
+                            fontSize: '3.5rem', 
+                            marginBottom: '0.5rem', 
+                            background: 'linear-gradient(135deg, #fff, var(--primary-color))',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            textShadow: '0 4px 30px rgba(99, 102, 241, 0.4)' 
+                        }}>
+                            Lumina
+                        </h1>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.5' }}>
+                            Your AI-powered grade advisor. Sync live from Infinite Campus and ask Lumina anything.
+                        </p>
+                    </div>
+                    
+                    <button onClick={() => setShowSyncForm(true)} className="btn-primary" style={{ 
+                        fontSize: '1.1rem', 
+                        padding: '1rem 2rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        gap: '12px',
+                        width: '100%',
+                        background: 'linear-gradient(135deg, var(--primary-color), #8b5cf6)',
+                        boxShadow: '0 8px 25px rgba(99, 102, 241, 0.4)'
+                    }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                        Sync via ClassLink
                     </button>
+
+                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Selected District:</span>
+                            <span style={{ color: 'var(--success-color)', fontWeight: '500' }}>{districtName}</span>
+                        </div>
+                        <button className="btn-secondary" onClick={handleFindDistrict} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', width: '100%', transition: 'background 0.2s' }}>
+                            Change District
+                        </button>
+                    </div>
                 </div>
             </div>
         );

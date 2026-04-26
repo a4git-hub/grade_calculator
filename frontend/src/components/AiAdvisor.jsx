@@ -32,7 +32,7 @@ const todayKey = () => `lumina_ai_usage_${new Date().toDateString()}`;
 const getUsageToday = () => parseInt(localStorage.getItem(todayKey()) || '0');
 const incrementUsage = () => localStorage.setItem(todayKey(), getUsageToday() + 1);
 
-export default function AiAdvisor({ courses, onClose, focusedCourse = null, syllabusKey = null }) {
+export default function AiAdvisor({ courses, onClose, focusedCourse = null, syllabusKey = null, inline = false }) {
   const [aiConsented, setAiConsented] = useState(
     () => localStorage.getItem('lumina_ai_consent') === 'yes'
   );
@@ -83,17 +83,17 @@ export default function AiAdvisor({ courses, onClose, focusedCourse = null, syll
 
   return (
     <div style={{
-      position: 'fixed',
-      bottom: '80px',
-      right: '20px',
-      width: '350px',
-      height: aiConsented ? '500px' : 'auto',
-      zIndex: 9999,
+      position: inline ? 'relative' : 'fixed',
+      bottom: inline ? 'auto' : '80px',
+      right: inline ? 'auto' : '20px',
+      width: inline ? '100%' : '350px',
+      height: inline ? '100%' : (aiConsented ? '500px' : 'auto'),
+      zIndex: inline ? 1 : 9999,
       display: 'flex',
       flexDirection: 'column',
-      boxShadow: '0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(99, 102, 241, 0.2)',
+      boxShadow: inline ? 'none' : '0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(99, 102, 241, 0.2)',
       borderRadius: 'var(--radius-lg)'
-    }} className="glass-panel animate-slide-up">
+    }} className={inline ? "" : "glass-panel animate-slide-up"}>
 
       {/* Header */}
       <div style={{
@@ -112,14 +112,16 @@ export default function AiAdvisor({ courses, onClose, focusedCourse = null, syll
             background: 'var(--primary-color)',
             boxShadow: '0 0 10px var(--primary-color)'
           }}></div>
-          <strong style={{ color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+          <strong style={{ color: 'var(--text-primary)', fontFamily: 'Inter, sans-serif' }}>
             {focusedCourse ? `AI Tutor: ${focusedCourse}` : "Lumina AI Advisor"}
           </strong>
         </div>
-        <button 
-          onClick={onClose}
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}
-        >✕</button>
+        {!inline && (
+          <button 
+            onClick={onClose}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}
+          >✕</button>
+        )}
       </div>
 
       {/* Consent Gate */}
