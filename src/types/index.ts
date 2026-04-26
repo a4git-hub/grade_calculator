@@ -52,6 +52,8 @@ export interface AttentionItem {
   pct?: string;
 }
 
+export type { UserProfile } from '../services/icTypes';
+
 // Navigation param lists
 export type RootStackParamList = {
   Onboarding: undefined;

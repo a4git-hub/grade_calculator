@@ -2,6 +2,7 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { DataProvider } from './src/context/DataContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 
 function AppContent() {
@@ -18,7 +19,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <DataProvider>
+          <AppContent />
+        </DataProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
