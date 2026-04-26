@@ -58,7 +58,6 @@ export type { UserProfile } from '../services/icTypes';
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: undefined;
-  IcSpike: undefined;
 };
 
 export type OnboardingStackParamList = {
