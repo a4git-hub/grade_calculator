@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, WebViewNavigation } from 'react-native-webview';
@@ -40,10 +40,15 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
       // will mount and call refresh() against the captured client.
       navigation.replace('FirstSync');
     } catch (err) {
+      // Capture failed — most commonly because cookies aren't durable yet
+      // (WebKit is still processing a Set-Cookie header from a 302 redirect).
+      // Silently reset the lock so the NEXT nav event can retry. The status
+      // strip stays on 'capturing' until a subsequent attempt succeeds or
+      // the user manually backs out. No Alert — alerts during normal auto-
+      // flow are noise; the screen's own status text communicates state.
       captureLockRef.current = false;
-      setPhase('error');
-      const msg = err instanceof Error ? err.message : String(err);
-      Alert.alert('Login capture failed', msg);
+      // eslint-disable-next-line no-console
+      console.log('[SignInWebView] capture attempt failed, will retry on next nav:', err);
     }
   };
 

@@ -33,18 +33,24 @@ export async function captureIcClient(
 
 /**
  * Heuristic for "WebView reached IC's authenticated SPA shell, cookies are
- * now durable." Multi-signal because IC tenants vary:
- *   - /campus/nav-wrapper      ← modern IC SPA shell (definitive post-auth)
- *   - /campus/SSO/.../SIS/     ← SAML receiver (cookies set in the 302)
- *   - appName=...              ← post-login query string on most tenants
- *   - /portal/main.jsp         ← legacy non-SPA installs (fallback)
+ * durable in WKHTTPCookieStore". Empirically tuned against SRVUSD on
+ * 2026-04-26 — order matters, only TERMINAL signals (post-redirect, cookies
+ * persisted) qualify:
+ *   - /campus/nav-wrapper  ← modern IC SPA shell (only loads post-auth)
+ *   - appName=...          ← post-login query string on most tenants
+ *   - /portal/main.jsp     ← legacy non-SPA installs (fallback)
+ *
+ * NOT included (intentionally): /campus/SSO/{schoolKey}/SIS/?... — that's
+ * the SAML receiver path, fires DURING the 302 redirect while Set-Cookie
+ * headers are still being processed by WebKit. Capturing there returns
+ * stale cookies (no JSESSIONID yet) and produces a spurious "no session"
+ * error before the next nav event succeeds. Wait for nav-wrapper instead.
  */
 export function isPostLoginUrl(url: string | undefined | null): boolean {
   if (!url) return false;
   const lower = url.toLowerCase();
   if (!lower.includes('infinitecampus.org')) return false;
   if (lower.includes('/campus/nav-wrapper')) return true;
-  if (lower.includes('/campus/sso/') && lower.includes('/sis/')) return true;
   if (lower.includes('appname=')) return true;
   if (lower.includes('/portal/main.jsp')) return true;
   return false;
