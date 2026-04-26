@@ -12,7 +12,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const { dark } = useTheme();
   // Set to true to skip onboarding during development
-  const [onboardingDone] = useState(false);
+  const [onboardingDone] = useState(true);
 
   return (
     <NavigationContainer>
@@ -21,7 +21,7 @@ export function RootNavigator() {
         screenOptions={{ headerShown: false, animation: 'fade' }}
       >
         <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
-        <Stack.Screen name="Main"       component={MainNavigator} />
+        <Stack.Screen name="Main" component={MainNavigator} />
         <Stack.Screen
           name="IcSpike"
           component={IcSpikeScreen}
