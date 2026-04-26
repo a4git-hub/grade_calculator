@@ -2,7 +2,7 @@
 // All UI lives in IcSpikeScreen.tsx. Delete this file when the spike is
 // promoted to Phase 1 (icClient.ts) or rolled back.
 
-import CookieManager from '@react-native-cookies/cookies';
+import NitroCookies from 'react-native-nitro-cookies';
 
 /**
  * SRVUSD portal entry URL.
@@ -80,7 +80,7 @@ export interface CookieCaptureResult {
 export async function extractIcCookies(
   origin: string = SPIKE_ORIGIN,
 ): Promise<CookieCaptureResult> {
-  const cookies = (await CookieManager.get(origin, true)) as CookieMap;
+  const cookies = (await NitroCookies.get(origin, true)) as CookieMap;
   return {
     cookieNames: Object.keys(cookies),
     hasJSESSIONID: 'JSESSIONID' in cookies,
