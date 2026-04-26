@@ -3,66 +3,54 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import { WebView, WebViewNavigation } from 'react-native-webview';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import {
-  DISTRICTS, IC_SCRAPER_JS, ICMessage, parseICPayload,
-} from '../../services/infiniteCampus';
+import { DISTRICTS } from '../../services/infiniteCampus';
+import { useData } from '../../context/DataContext';
+import { captureIcClient, isPostLoginUrl } from '../../hooks/useIcAuth';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'SignInWebView'>;
 
-type Phase = 'auth' | 'fetching' | 'parsed' | 'error';
+type Phase = 'awaiting' | 'capturing' | 'error';
 
 export function SignInWebViewScreen({ navigation, route }: Props) {
   const { T, dark } = useTheme();
   const district = DISTRICTS.find(d => d.id === route.params.districtId) ?? DISTRICTS[0];
   const webRef = useRef<WebView>(null);
+  const { setClient } = useData();
+  const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
 
-  const [phase,    setPhase]   = useState<Phase>('auth');
-  const [progress, setProgress] = useState<string>('Waiting for sign-in…');
+  const [phase, setPhase] = useState<Phase>('awaiting');
 
-  const onMessage = (event: WebViewMessageEvent) => {
-    let msg: ICMessage;
+  const onNav = async (e: WebViewNavigation) => {
+    if (captureLockRef.current) return;
+    if (!isPostLoginUrl(e.url)) return;
+    captureLockRef.current = true;
+    setPhase('capturing');
     try {
-      msg = JSON.parse(event.nativeEvent.data);
-    } catch {
-      return;
+      // Origin = scheme + host of the district's portalUrl
+      const origin = new URL(district.portalUrl).origin;
+      const client = await captureIcClient(origin);
+      setClient(client);
+      // Closing the WebView = navigating away. The next screen (FirstSync)
+      // will mount and call refresh() against the captured client.
+      navigation.replace('FirstSync');
+    } catch (err) {
+      captureLockRef.current = false;
+      setPhase('error');
+      const msg = err instanceof Error ? err.message : String(err);
+      Alert.alert('Login capture failed', msg);
     }
+  };
 
-    switch (msg.type) {
-      case 'await-auth':
-        setPhase('auth');
-        setProgress('Waiting for sign-in…');
-        return;
-      case 'progress':
-        setPhase('fetching');
-        setProgress({
-          roster:      'Loading course roster…',
-          grades:      'Pulling grades & weights…',
-          assignments: 'Pulling assignments…',
-          history:     'Computing grade history…',
-        }[msg.payload.step]);
-        return;
-      case 'error':
-        setPhase('error');
-        Alert.alert('Sync error', msg.payload.message);
-        return;
-      case 'done': {
-        setPhase('parsed');
-        const parsed = parseICPayload(msg.payload);
-        // TODO: persist via AsyncStorage / SecureStore — then advance.
-        // For now the parsed payload is dropped and onboarding proceeds with mock data.
-        // (Wire this into a DataContext in a follow-up.)
-        // eslint-disable-next-line no-console
-        console.log('[Lumina] Parsed IC payload:', parsed.classes.length, 'classes');
-        navigation.replace('FirstSync');
-        return;
-      }
-    }
+  const progressText: Record<Phase, string> = {
+    awaiting:  'Waiting for sign-in…',
+    capturing: 'Capturing session…',
+    error:     'Capture failed — pull to retry',
   };
 
   return (
@@ -80,11 +68,11 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
 
         {/* Status strip */}
         <View style={[styles.status, { backgroundColor: T.surface, borderColor: T.hairline }]}>
-          {phase === 'parsed'
+          {phase === 'error'
             ? <View style={[styles.dot, { backgroundColor: T.good }]} />
             : <ActivityIndicator size="small" color={T.accent} />}
           <Text style={[styles.statusText, { color: T.text }]} numberOfLines={1}>
-            {progress}
+            {progressText[phase]}
           </Text>
           <View style={[styles.lockChip, { backgroundColor: T.surface3 }]}>
             <LIcon.Lock size={11} color={T.text2} />
@@ -104,8 +92,7 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
             domStorageEnabled
             incognito={false}
             allowsInlineMediaPlayback
-            onMessage={onMessage}
-            injectedJavaScript={IC_SCRAPER_JS}
+            onNavigationStateChange={onNav}
             startInLoadingState
             renderLoading={() => (
               <View style={[styles.loading, { backgroundColor: T.bg }]}>
@@ -114,7 +101,6 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
             )}
             onError={(e) => {
               setPhase('error');
-              setProgress(`Failed to load: ${e.nativeEvent.description}`);
             }}
           />
         </View>
