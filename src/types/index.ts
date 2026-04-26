@@ -56,6 +56,7 @@ export interface AttentionItem {
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: undefined;
+  IcSpike: undefined;
 };
 
 export type OnboardingStackParamList = {
