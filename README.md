@@ -46,11 +46,18 @@ LuminaApp/
 ├── app.json                         Expo config (iOS/Android, ATS, plugins)
 ├── src/
 │   ├── tokens/index.ts              Design tokens — dark/light, fonts, helpers
-│   ├── context/ThemeContext.tsx     Theme state (dark default)
+│   ├── context/
+│   │   ├── ThemeContext.tsx         Theme state (dark default)
+│   │   └── DataContext.tsx          IC data state + auth trigger (DataProvider)
 │   ├── types/index.ts               Domain + navigation param types
-│   ├── data/mock.ts                 Mock student data (Aditya, 6 classes)
+│   ├── data/mock.ts                 Mock student data (kept for offline dev)
+│   ├── hooks/
+│   │   └── useIcAuth.ts             Triggers SSO WebView, captures cookies, runs sync
 │   ├── services/
-│   │   └── infiniteCampus.ts        IC integration: districts, scraper JS, parser
+│   │   ├── icTypes.ts               Raw IC API response shapes (TypeScript interfaces)
+│   │   ├── icClient.ts              HTTP layer — native fetch with explicit Cookie header
+│   │   ├── icMapper.ts              Raw IC JSON → app domain types (ClassItem, SubjectDetail)
+│   │   └── infiniteCampus.ts        District registry (kept for district-picker screen)
 │   ├── components/
 │   │   ├── LIcon.tsx                SVG icon set (~24 icons)
 │   │   ├── Sparkline.tsx            Mini grade chart (react-native-svg)
@@ -67,8 +74,8 @@ LuminaApp/
 │       ├── onboarding/
 │       │   ├── WelcomeScreen.tsx
 │       │   ├── DistrictScreen.tsx
-│       │   ├── SignInWebViewScreen.tsx   ← inline WKWebView for IC SSO
-│       │   └── FirstSyncScreen.tsx
+│       │   ├── SignInWebViewScreen.tsx   ← SSO WebView; closes after cookie capture
+│       │   └── FirstSyncScreen.tsx       ← animates sync progress, then enters app
 │       └── main/
 │           ├── DashboardScreen.tsx
 │           ├── SubjectDetailScreen.tsx   ← floating "Assess my plan" button
@@ -80,47 +87,59 @@ LuminaApp/
 
 ## Infinite Campus integration
 
-There is no public IC API. Lumina integrates by opening the district's IC
-student portal in an **inline `WKWebView`** (iOS) / `android.webkit.WebView`
-(Android), letting the student authenticate via their district SSO, and then
-running an injected script inside the WebView that calls IC's internal portal
-endpoints with the authed cookies and posts the JSON back to RN.
+There is no public IC API. Lumina integrates via **cookie-capture + native
+fetch** — no JS injection, no code running inside the WebView.
 
-The student's password never leaves the WebView's cookie jar — RN never sees
-it.
+### Login flow
 
-Flow:
-
-1. **DistrictScreen** — student picks a district from `DISTRICTS` in
+1. **DistrictScreen** — student picks a district from the registry in
    `src/services/infiniteCampus.ts`. Each entry maps to its IC portal URL.
-2. **SignInWebViewScreen** — opens `district.portalUrl` in a `<WebView>`.
-   The student logs in (ClassLink / Azure / native IC). Cookies are persisted
-   via `sharedCookiesEnabled` (iOS) and `thirdPartyCookiesEnabled` (Android).
-3. **`IC_SCRAPER_JS`** — injected JS that polls until auth completes, then
-   `fetch()`es `/campus/api/portal/students`, `/campus/resources/portal/grades`,
-   `/campus/resources/portal/assignments`, and `/campus/resources/portal/grades/history`.
-   Each step posts a `progress` message back to RN; the final `done` message
-   carries the raw IC payload.
-4. **`parseICPayload`** — maps the IC JSON to the app's `ClassItem` and
-   `SubjectDetail` types defined in `src/types/index.ts`.
-5. **FirstSyncScreen** — animates the sync progress, then advances to the main app.
+2. **SignInWebViewScreen** — opens `district.portalUrl` in a `<WebView>`. The
+   student authenticates via ClassLink / Azure / native IC. Once the post-auth
+   redirect lands, `useIcAuth` (via NitroCookies) captures the session cookies
+   and closes the WebView. The student's password never leaves the WebView —
+   the app only ever sees opaque session cookies.
+3. **Native fetch** — all subsequent IC calls are made from RN with an explicit
+   `Cookie:` header assembled from the captured cookies. No WebView is involved
+   after login.
 
-The parser is intentionally tolerant of missing fields because IC schemas vary
-by district configuration.
+### Layered architecture
 
-### Wiring real data into the screens
+```
+IcClient (HTTP)
+  └─ icMapper (raw IC JSON → app domain types)
+       └─ DataContext (in-memory state, exposes data + triggerSync)
+            └─ hooks: useUser · useClasses · useSubjectDetail · useAttention
+                 └─ screens (6 main + 2 onboarding)
+```
 
-The screens currently read from `src/data/mock.ts`. To use live data:
+| Layer | File | Responsibility |
+| --- | --- | --- |
+| HTTP | `src/services/icClient.ts` | `buildIcClient(baseUrl, cookieHeader)` — returns typed fetch wrappers |
+| Types | `src/services/icTypes.ts` | Raw IC API response shapes (TypeScript interfaces) |
+| Mapper | `src/services/icMapper.ts` | `mapUser`, `mapClasses`, `mapSubjectDetail` — IC JSON → `ClassItem` / `SubjectDetail` |
+| State | `src/context/DataContext.tsx` | `DataProvider` holds synced data in memory; `useUser/useClasses/useSubjectDetail/useAttention` hooks |
+| Auth | `src/hooks/useIcAuth.ts` | Mounts SSO WebView, captures cookies via NitroCookies, calls `IcClient`, feeds `DataContext` |
 
-1. Wrap the app in a `DataProvider` that holds `parsed.classes` and
-   `parsed.subjectDetails` in state (and persists with `expo-secure-store` or
-   `@react-native-async-storage/async-storage`).
-2. Replace the `MockClasses` / `MockPreCalc` imports in
-   `DashboardScreen`, `SubjectDetailScreen`, `AttentionScreen`, etc. with
-   `useData()` from that provider.
-3. Surface a "Re-sync now" action in `SettingsScreen` that re-mounts the
-   `SignInWebView` (cookies will already be present, so the auth poll completes
-   immediately).
+### Endpoints
+
+| Endpoint | Used by |
+| --- | --- |
+| `/campus/resources/my/userAccount` | `useIcAuth` — student identity |
+| `/campus/resources/portal/grades` | `icMapper.mapClasses` — all class grades |
+| `/campus/api/portal/assignment/recentlyScored` | `icMapper.mapSubjectDetail` — recent assignment scores |
+| `/campus/resources/portal/roster` | `IcClient` (available, not yet consumed — Phase 2) |
+
+### Persistence model
+
+Everything is **in-memory only**. Nothing is written to disk, AsyncStorage, or
+SecureStore. Every cold launch re-auths via the SSO WebView (cookies are still
+present in the WebView's cookie jar, so the ClassLink/Azure redirect typically
+completes without the student re-entering credentials). The captured cookie
+string lives only inside the `IcClient` closure held by `DataContext`.
+
+This is a deliberate design choice for Phase 1 — it avoids storing session
+tokens on device while the security model is still being reviewed.
 
 ## Design
 
@@ -209,7 +228,7 @@ scale:
 | -------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------- |
 | Expo Go                    | JS-only, runs inside the prebuilt Expo Go app                                    | Pure-JS prototypes only                           |
 | **Prebuild (this app)**    | Full native build via `expo run:*`. All autolinked native modules work.          | 99% of production Expo apps                       |
-| Bare / fully ejected       | You commit `ios/` + `android/` and stop running `expo prebuild`                  | Forking a native lib, or non-autolinked native code |
+| Bare / fully ejected       | You commit `ios/` + `android/` and stop running `expo prebuild`                  | Forking a native lib, or non-automated native code |
 
 Eject only if you need to (a) fork a native library's source, (b) wire a
 non-autolinked native lib by hand, or (c) edit `Info.plist` /
@@ -223,12 +242,13 @@ rather than ejecting — it runs the same prebuild + Xcode pipeline on Expo's CI
 
 ## Status
 
-- ✅ All 9 screens built (onboarding × 3, main × 6) + IC WebView screen
+- ✅ All 8 screens built (onboarding × 2, main × 6)
 - ✅ Light / dark themes
 - ✅ React Navigation wired (root stack + onboarding stack + main tabs + classes stack)
-- ✅ IC integration scaffolded — scraper JS, parser, WebView screen
-- ⏳ Live data wiring — currently uses mock data; next step is the `DataProvider` described above
-- ⏳ Persistence — no AsyncStorage / SecureStore yet
+- ✅ IC Phase 1 integration — cookie-capture login, native fetch, `IcClient` + `icMapper` + `DataContext`
+- ✅ Live data wired into all screens via `useUser` / `useClasses` / `useSubjectDetail` / `useAttention` hooks
+- ✅ Persistence — deliberate non-goal for Phase 1; in-memory only, re-auths on cold launch
+- ⏳ Roster endpoint consumed by screens (Phase 2)
 - ⏳ Push notifications, syllabus upload — not yet implemented
 
 ## License
