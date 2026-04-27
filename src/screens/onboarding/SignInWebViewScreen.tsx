@@ -25,8 +25,18 @@ export function SignInWebViewScreen({ navigation }: Props) {
   const districtName = district?.name ?? '';
   const portalUrl = district?.portalUrl ?? '';
   const webRef = useRef<WebView>(null);
-  const { setClient } = useData();
+  const { setClient, requestChangeDistrict } = useData();
   const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
+
+  // The state-driven remount in RootNavigator destroys nav history when
+  // setDistrict() flips forceChangeDistrict false. Result: this screen often
+  // has nothing to go back to (returning user, post-pick, post-sign-out).
+  // When that's the case, repurpose the Back button to "Change district" so
+  // a user who picked the wrong district has an escape hatch — rather than
+  // tapping a Back that does nothing and logs a navigator warning.
+  const canGoBack = navigation.canGoBack();
+  const onBackPress = canGoBack ? () => navigation.goBack() : requestChangeDistrict;
+  const backLabel = canGoBack ? 'Back' : 'Change district';
 
   // Defensive: if somehow we landed here without a district in context
   // (shouldn't happen with current routing, but bad data shouldn't crash),
@@ -76,12 +86,14 @@ export function SignInWebViewScreen({ navigation }: Props) {
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Top bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+          <TouchableOpacity onPress={onBackPress} style={styles.back} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <LIcon.ChevronLeft size={18} color={T.ink} stroke={2.4} />
-            <Text style={[styles.backText, { color: T.ink }]}>Back</Text>
+            <Text style={[styles.backText, { color: T.ink }]} numberOfLines={1}>{backLabel}</Text>
           </TouchableOpacity>
-          <Text style={[monoStyle(T)]} numberOfLines={1}>{districtName}</Text>
-          <View style={{ width: 64 }} />
+          <Text style={[monoStyle(T), styles.topBarTitle]} numberOfLines={1}>{districtName}</Text>
+          {/* Right spacer kept narrow; the back button is auto-sized so the
+              centered title can drift slightly when it's "Change district". */}
+          <View style={{ width: 24 }} />
         </View>
 
         {/* Status strip */}
@@ -138,8 +150,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 18, paddingTop: 12, paddingBottom: 10,
   },
-  back:     { flexDirection: 'row', alignItems: 'center', gap: 2, width: 64 },
+  // No fixed width — the label can be 'Back' (short) or 'Change district' (long).
+  back:     { flexDirection: 'row', alignItems: 'center', gap: 2 },
   backText: { fontSize: 15, fontWeight: '500', marginLeft: -2 },
+  topBarTitle: { flexShrink: 1, marginHorizontal: 8 },
   status: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 18, marginBottom: 10,
