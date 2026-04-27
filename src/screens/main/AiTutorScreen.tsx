@@ -19,7 +19,11 @@ export function AiTutorScreen() {
   const [customGradeInput, setCustomGradeInput] = useState("");
   const [showCustomGradePrompt, setShowCustomGradePrompt] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  // Auto-select the first class on mount. The dropdown defaults to this and
+  // user can change it before tapping a prompt.
   const [activeClassId, setActiveClassId] = useState<string | null>(classes[0]?.id || null);
+  // Inline-expand dropdown state. False = trigger only; true = trigger + options.
+  const [classPickerOpen, setClassPickerOpen] = useState(false);
 
   const handleSend = (prompt: string) => {
     setSelectedPrompt(prompt);
@@ -95,40 +99,66 @@ export function AiTutorScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Class Selector */}
-          <View style={{ marginBottom: 20 }}>
-            <Text style={[monoStyle(T), styles.kicker]}>Select Class</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 8 }}>
-              {classes.map(c => {
-                const isActive = c.id === activeClassId;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setActiveClassId(c.id)}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderRadius: 16,
-                      backgroundColor: isActive ? T.accent : T.surface2,
-                      borderWidth: 1,
-                      borderColor: isActive ? T.accent : T.hairline,
-                    }}
-                  >
-                    <Text style={{ color: isActive ? '#fff' : T.text, fontWeight: isActive ? '600' : '500', fontSize: 13 }}>
-                      {c.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-
           <Text style={[styles.title, { color: T.text }]}>How can I help you today?</Text>
           <Text style={[styles.sub, { color: T.text2 }]}>
-            Select a prompt below to get personalized guidance based on your syllabus and current progress for {activeClass.name}.
+            Select a class and a prompt below to get personalized guidance based on your syllabus and current progress.
           </Text>
 
-          <View style={{ gap: 12 }}>
+          {/* Class picker dropdown — sits directly above the action cards.
+              Single rounded surface containing the trigger row (always visible)
+              and option rows (only when expanded). The classes the user can
+              switch to share visual language with the action cards beneath. */}
+          <View style={[
+            styles.classPicker,
+            {
+              backgroundColor: T.surface,
+              borderColor: classPickerOpen ? T.accent : T.hairline,
+            },
+          ]}>
+            <Text style={[monoStyle(T), styles.classPickerLabel]}>Class</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setClassPickerOpen(o => !o)}
+              style={styles.classTrigger}
+            >
+              <Text style={[styles.classTriggerText, { color: T.text }]} numberOfLines={1}>
+                {activeClass.name}
+              </Text>
+              <View style={{
+                transform: [{ rotate: classPickerOpen ? '-90deg' : '90deg' }],
+              }}>
+                <LIcon.Chevron size={16} color={T.text2} stroke={2} />
+              </View>
+            </TouchableOpacity>
+            {classPickerOpen && (
+              <View style={[styles.classOptions, { borderTopColor: T.hairline }]}>
+                {classes.map(c => {
+                  const isActive = c.id === activeClassId;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setActiveClassId(c.id);
+                        setClassPickerOpen(false);
+                      }}
+                      style={styles.classOption}
+                    >
+                      <Text style={[
+                        styles.classOptionText,
+                        { color: isActive ? T.accent : T.text, fontWeight: isActive ? '600' : '500' },
+                      ]} numberOfLines={1}>
+                        {c.name}
+                      </Text>
+                      {isActive && <LIcon.Check size={16} color={T.accent} stroke={2.4} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          <View style={{ gap: 12, marginTop: 16 }}>
             {OPTIONS.map((opt, i) => (
               <TouchableOpacity
                 key={i}
@@ -195,7 +225,47 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 110 },
   kicker: { marginBottom: 6 },
   title:  { fontSize: 28, fontWeight: '700', letterSpacing: -0.7, lineHeight: 32, marginBottom: 6 },
-  sub:    { fontSize: 14, lineHeight: 20, marginBottom: 24 },
+  sub:    { fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  // Class picker dropdown — single surface, expands inline when opened.
+  classPicker: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  classPickerLabel: {
+    paddingTop: 10,
+    paddingHorizontal: 14,
+  },
+  classTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingTop: 4,
+  },
+  classTriggerText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 12,
+  },
+  classOptions: {
+    borderTopWidth: 1,
+    paddingVertical: 4,
+  },
+  classOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  classOptionText: {
+    flex: 1,
+    fontSize: 14,
+    marginRight: 12,
+  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
