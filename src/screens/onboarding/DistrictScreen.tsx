@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,11 +8,13 @@ import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import { DISTRICTS as IC_DISTRICTS } from '../../services/infiniteCampus';
+import { searchDistricts, type IcDistrictResult } from '../../services/icDistrictSearch';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'District'>;
 
-const DISTRICTS = IC_DISTRICTS.map((d, i) => ({ ...d, match: i === 0 }));
+const MIN_QUERY_LEN = 3;
+const DEBOUNCE_MS = 300;
+const STATE_CODE = 'CA'; // v1: hardcoded; future feature = state picker
 
 function StepDots({ T, step }: { T: any; step: number }) {
   return (
@@ -33,9 +35,76 @@ function StepDots({ T, step }: { T: any; step: number }) {
   );
 }
 
+function initialsForDistrict(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
 export function DistrictScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
-  const [query, setQuery] = useState('Westview');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<IcDistrictResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<IcDistrictResult | null>(null);
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track latest query so a slow response from an older query can't overwrite
+  // results from a newer query (out-of-order race protection).
+  const queryTokenRef = useRef(0);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const trimmed = query.trim();
+
+    if (trimmed.length < MIN_QUERY_LEN) {
+      setResults([]);
+      setError(null);
+      setLoading(false);
+      setSelected(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    const myToken = ++queryTokenRef.current;
+    timerRef.current = setTimeout(async () => {
+      try {
+        const r = await searchDistricts(trimmed, STATE_CODE);
+        if (queryTokenRef.current !== myToken) return; // a newer query has fired
+        setResults(r);
+        // If the previously-selected district isn't in the new results, clear it
+        setSelected(prev => (prev && r.some(d => d.id === prev.id) ? prev : null));
+      } catch (e) {
+        if (queryTokenRef.current !== myToken) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setResults([]);
+        setSelected(null);
+      } finally {
+        if (queryTokenRef.current === myToken) setLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [query]);
+
+  const trimmed = query.trim();
+  const showHint = trimmed.length > 0 && trimmed.length < MIN_QUERY_LEN;
+  const showEmpty = !loading && !error && trimmed.length >= MIN_QUERY_LEN && results.length === 0;
+  const canContinue = selected != null;
+
+  const goToSignIn = (district: IcDistrictResult) => {
+    navigation.navigate('SignInWebView', {
+      districtName: district.district_name,
+      portalUrl: district.student_login_url,
+    });
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -60,48 +129,91 @@ export function DistrictScreen({ navigation }: Props) {
               onChangeText={setQuery}
               style={[styles.searchInput, { color: T.text }]}
               placeholderTextColor={T.text3}
-              placeholder="Search district…"
+              placeholder="Search by city or district name (3+ characters)"
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
+              clearButtonMode="while-editing"
+              returnKeyType="search"
             />
+            {loading && <ActivityIndicator size="small" color={T.accent} />}
           </View>
 
-          <Text style={[monoStyle(T), styles.matchCount]}>{DISTRICTS.length} matches</Text>
+          {/* Status line */}
+          <View style={styles.statusRow}>
+            {showHint && (
+              <Text style={[monoStyle(T), { color: T.text3 }]}>
+                Type at least {MIN_QUERY_LEN} characters
+              </Text>
+            )}
+            {!showHint && !error && results.length > 0 && (
+              <Text style={[monoStyle(T), styles.matchCount]}>
+                {results.length} match{results.length === 1 ? '' : 'es'} in {STATE_CODE}
+              </Text>
+            )}
+            {error && (
+              <Text style={[monoStyle(T), { color: T.bad }]} numberOfLines={2}>
+                {error}
+              </Text>
+            )}
+          </View>
 
           {/* District list */}
-          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-            {DISTRICTS.map((d, i) => (
-              <TouchableOpacity
-                key={i}
-                activeOpacity={0.8}
-                onPress={() => navigation.navigate('SignInWebView', { districtId: d.id })}
-                style={[
-                  styles.districtRow,
-                  {
-                    backgroundColor: d.match ? T.accentSoft : T.surface,
-                    borderColor: d.match ? T.accent + '55' : T.hairline,
-                  },
-                ]}
-              >
-                <View style={[
-                  styles.initials,
-                  { backgroundColor: d.match ? T.accent + '22' : T.surface3 },
-                ]}>
-                  <Text style={[styles.initialsText, { color: d.match ? T.accent : T.text2 }]}>
-                    {d.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
-                  </Text>
-                </View>
-                <View style={styles.districtInfo}>
-                  <Text style={[styles.districtName, { color: T.text }]}>{d.name}</Text>
-                  <Text style={[styles.districtSub, { color: T.text3 }]}>{d.sub}</Text>
-                </View>
-                {d.match ? (
-                  <View style={[styles.checkCircle, { backgroundColor: T.accent }]}>
-                    <LIcon.Check size={14} color={dark ? '#04181B' : '#fff'} stroke={2.6} />
+          <ScrollView
+            style={styles.list}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {showEmpty && (
+              <View style={[styles.emptyState, { borderColor: T.hairline }]}>
+                <Text style={[styles.emptyTitle, { color: T.text2 }]}>No districts found</Text>
+                <Text style={[styles.emptySub, { color: T.text3 }]}>
+                  Try a different spelling or part of your school's city name.
+                </Text>
+              </View>
+            )}
+            {results.map((d) => {
+              const isSelected = selected?.id === d.id;
+              return (
+                <TouchableOpacity
+                  key={d.id}
+                  activeOpacity={0.85}
+                  onPress={() => setSelected(d)}
+                  style={[
+                    styles.districtRow,
+                    {
+                      backgroundColor: isSelected ? T.accentSoft : T.surface,
+                      borderColor: isSelected ? T.accent + '55' : T.hairline,
+                    },
+                  ]}
+                >
+                  <View style={[
+                    styles.initials,
+                    { backgroundColor: isSelected ? T.accent + '22' : T.surface3 },
+                  ]}>
+                    <Text style={[styles.initialsText, { color: isSelected ? T.accent : T.text2 }]}>
+                      {initialsForDistrict(d.district_name)}
+                    </Text>
                   </View>
-                ) : (
-                  <LIcon.Chevron size={16} color={T.text3} />
-                )}
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.districtInfo}>
+                    <Text style={[styles.districtName, { color: T.text }]} numberOfLines={1}>
+                      {d.district_name}
+                    </Text>
+                    <Text style={[styles.districtSub, { color: T.text3 }]} numberOfLines={1}>
+                      Campus · {d.state_code}
+                    </Text>
+                  </View>
+                  {isSelected ? (
+                    <View style={[styles.checkCircle, { backgroundColor: T.accent }]}>
+                      <LIcon.Check size={14} color={dark ? '#04181B' : '#fff'} stroke={2.6} />
+                    </View>
+                  ) : (
+                    <LIcon.Chevron size={16} color={T.text3} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           {/* Security note */}
@@ -113,17 +225,23 @@ export function DistrictScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => {
-              const matched = DISTRICTS.find(d => d.match) ?? DISTRICTS[0];
-              navigation.navigate('SignInWebView', { districtId: matched.id });
-            }}
-            style={[styles.cta, { backgroundColor: T.accent }]}
+            activeOpacity={canContinue ? 0.85 : 1}
+            disabled={!canContinue}
+            onPress={() => selected && goToSignIn(selected)}
+            style={[
+              styles.cta,
+              { backgroundColor: canContinue ? T.accent : T.surface2 },
+            ]}
           >
-            <Text style={[styles.ctaText, { color: dark ? '#04181B' : '#fff' }]}>
-              Continue with ClassLink
+            <Text style={[
+              styles.ctaText,
+              { color: canContinue ? (dark ? '#04181B' : '#fff') : T.text3 },
+            ]}>
+              {canContinue ? 'Continue with ClassLink' : 'Pick a district to continue'}
             </Text>
-            <LIcon.Arrow size={18} color={dark ? '#04181B' : '#fff'} stroke={2.2} />
+            {canContinue && (
+              <LIcon.Arrow size={18} color={dark ? '#04181B' : '#fff'} stroke={2.2} />
+            )}
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -176,17 +294,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
   },
+  statusRow: {
+    minHeight: 18,
+    marginBottom: 8,
+  },
   matchCount: {
-    marginBottom: 10,
+    // monoStyle already provides color/font; just margin spacer below.
   },
   list: {
     flex: 1,
+  },
+  emptyState: {
+    padding: 18,
+    paddingVertical: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
   },
   districtRow: {
     flexDirection: 'row',

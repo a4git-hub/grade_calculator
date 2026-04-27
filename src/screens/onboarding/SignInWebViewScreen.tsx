@@ -9,7 +9,6 @@ import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import { DISTRICTS } from '../../services/infiniteCampus';
 import { useData } from '../../context/DataContext';
 import { captureIcClient, isPostLoginUrl } from '../../hooks/useIcAuth';
 
@@ -19,7 +18,10 @@ type Phase = 'awaiting' | 'capturing' | 'error';
 
 export function SignInWebViewScreen({ navigation, route }: Props) {
   const { T, dark } = useTheme();
-  const district = DISTRICTS.find(d => d.id === route.params.districtId) ?? DISTRICTS[0];
+  // Display name + URL come directly from DistrictScreen's search result.
+  // No DISTRICTS lookup table needed — works for any IC tenant nationwide.
+  const districtName = route.params.districtName;
+  const portalUrl = route.params.portalUrl;
   const webRef = useRef<WebView>(null);
   const { setClient } = useData();
   const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
@@ -33,7 +35,7 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
     setPhase('capturing');
     try {
       // Origin = scheme + host of the district's portalUrl
-      const origin = new URL(district.portalUrl).origin;
+      const origin = new URL(portalUrl).origin;
       const client = await captureIcClient(origin);
       setClient(client);
       // Closing the WebView = navigating away. The next screen (FirstSync)
@@ -67,7 +69,7 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
             <LIcon.ChevronLeft size={18} color={T.ink} stroke={2.4} />
             <Text style={[styles.backText, { color: T.ink }]}>Back</Text>
           </TouchableOpacity>
-          <Text style={[monoStyle(T)]} numberOfLines={1}>{district.name}</Text>
+          <Text style={[monoStyle(T)]} numberOfLines={1}>{districtName}</Text>
           <View style={{ width: 64 }} />
         </View>
 
@@ -89,7 +91,7 @@ export function SignInWebViewScreen({ navigation, route }: Props) {
         <View style={[styles.webWrap, { borderColor: T.hairline }]}>
           <WebView
             ref={webRef}
-            source={{ uri: district.portalUrl }}
+            source={{ uri: portalUrl }}
             originWhitelist={['https://*']}
             sharedCookiesEnabled                  // iOS — preserves SSO cookies
             thirdPartyCookiesEnabled              // Android

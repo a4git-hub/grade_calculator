@@ -63,7 +63,13 @@ export type RootStackParamList = {
 export type OnboardingStackParamList = {
   Welcome: undefined;
   District: undefined;
-  SignInWebView: { districtId: string };
+  /**
+   * The selected district's display name + portal URL, passed in by
+   * DistrictScreen after the user picks from search results. We pass the
+   * URL directly (instead of an ID + lookup table) so the SignInWebView
+   * is district-agnostic — works for any IC tenant nationwide.
+   */
+  SignInWebView: { districtName: string; portalUrl: string };
   FirstSync: undefined;
 };
 
