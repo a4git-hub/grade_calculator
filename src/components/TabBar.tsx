@@ -79,6 +79,11 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    // space-around centers the 4 capped-width tabs across the full row,
+    // preventing the leftover-space-on-the-right artifact when tab content
+    // is narrower than the screen (phone) while preserving the maxWidth:80
+    // tap-target cap that keeps iPad layouts sane.
+    justifyContent: 'space-around',
     paddingTop: 8,
     paddingHorizontal: 12,
   },
