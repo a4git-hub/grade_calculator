@@ -61,6 +61,18 @@ export type { UserProfile } from '../services/icTypes';
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: undefined;
+  /**
+   * District search presented as a modal over Main. Used when the user taps
+   * the "District" row in Settings to change schools. Reuses the
+   * DistrictScreen component but changes its on-pick + cancel behavior
+   * because route.name === 'ChangeDistrict' here (vs 'District' in Onboarding).
+   */
+  ChangeDistrict: undefined;
+  /**
+   * Privacy policy presented as a modal over Main. Reachable from the
+   * "Privacy & data" row in Settings.
+   */
+  Privacy: undefined;
 };
 
 export type OnboardingStackParamList = {

@@ -3,15 +3,34 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { OnboardingStackParamList } from '../../types';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { OnboardingStackParamList, RootStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
 import { searchDistricts, type IcDistrictResult } from '../../services/icDistrictSearch';
 
-type Props = NativeStackScreenProps<OnboardingStackParamList, 'District'>;
+// DistrictScreen is mounted in TWO places:
+//   1. Onboarding stack (route name 'District') — first-time users coming
+//      from Welcome. On pick: setDistrict + navigate to SignInWebView.
+//   2. Root stack as a modal (route name 'ChangeDistrict') — invoked from
+//      Settings when an authenticated user wants to switch schools. On pick:
+//      setDistrict + signOut + close modal. On cancel (close button): just
+//      close modal, no state change. RootNavigator handles re-routing to
+//      SignInWebView for the new district once the modal closes.
+//
+// We detect mode via route.name instead of a route param so the same component
+// works from both navigators without touching their param lists.
+//
+// Type note: we use the OnboardingStack typing for navigation here. `goBack()`
+// works on any navigator and `navigate('SignInWebView')` is only called in
+// the onboarding branch — either way TS is happy. When mounted in the Root
+// modal context, the actual runtime navigation prop has slightly different
+// typing but the methods we use behave identically. Casting in one place
+// (the inner navigate call) keeps the rest of the file clean.
+type DistrictNav = NativeStackNavigationProp<OnboardingStackParamList, 'District'>;
 
 const MIN_QUERY_LEN = 3;
 const DEBOUNCE_MS = 300;
@@ -45,9 +64,12 @@ function initialsForDistrict(name: string): string {
     .join('');
 }
 
-export function DistrictScreen({ navigation }: Props) {
+export function DistrictScreen() {
   const { T, dark } = useTheme();
-  const { setDistrict } = useData();
+  const { setDistrict, signOut, district: currentDistrict } = useData();
+  const navigation = useNavigation<DistrictNav>();
+  const route = useRoute();
+  const isModal = route.name === 'ChangeDistrict';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<IcDistrictResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,28 +123,61 @@ export function DistrictScreen({ navigation }: Props) {
   const showEmpty = !loading && !error && trimmed.length >= MIN_QUERY_LEN && results.length === 0;
   const canContinue = selected != null;
 
-  const goToSignIn = (district: IcDistrictResult) => {
-    // Persist + write to DataContext. SignInWebView reads from context, so we
-    // don't pass route params. This also clears forceChangeDistrict so the
-    // "Change district" flow lands cleanly on SignInWebView next time.
-    void setDistrict({
-      name: district.district_name,
-      portalUrl: district.student_login_url,
-    });
-    navigation.navigate('SignInWebView');
+  const goToSignIn = (picked: IcDistrictResult) => {
+    const next = {
+      name: picked.district_name,
+      portalUrl: picked.student_login_url,
+    };
+    void setDistrict(next);
+
+    if (isModal) {
+      // Modal flow: invoked from Settings. If the user picked the SAME district
+      // they already have, no need to sign out — just close the modal and
+      // they're back on Settings. If they picked a NEW district, sign out so
+      // RootNavigator routes them to SignInWebView for the new district when
+      // the modal closes.
+      const sameDistrict = currentDistrict?.portalUrl === next.portalUrl;
+      if (!sameDistrict) signOut();
+      navigation.goBack();
+    } else {
+      // Onboarding flow: forward through the stack to login.
+      navigation.navigate('SignInWebView');
+    }
+  };
+
+  const handleCancel = () => {
+    // Only meaningful in modal mode (cancel = close, no state change).
+    navigation.goBack();
   };
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.content}>
-          {/* Step header */}
+          {/* Step header / modal header. Modal mode shows a Cancel button on
+              the right since there's no underlying step progression — the user
+              came from Settings and can back out at any time. */}
           <View style={styles.stepHeader}>
-            <StepDots T={T} step={2} />
-            <Text style={[monoStyle(T)]}>Step 2 / 3</Text>
+            {isModal ? (
+              <Text style={[monoStyle(T)]}>Change district</Text>
+            ) : (
+              <StepDots T={T} step={2} />
+            )}
+            {isModal ? (
+              <TouchableOpacity
+                onPress={handleCancel}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.cancelText, { color: T.ink }]}>Cancel</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[monoStyle(T)]}>Step 2 / 3</Text>
+            )}
           </View>
 
-          <Text style={[styles.title, { color: T.text }]}>Find your district</Text>
+          <Text style={[styles.title, { color: T.text }]}>
+            {isModal ? 'Switch district' : 'Find your district'}
+          </Text>
           <Text style={[styles.sub, { color: T.text2 }]}>
             We'll route you to your school's sign-in. Lumina never sees your password.
           </Text>
@@ -400,5 +455,9 @@ const styles = StyleSheet.create({
   ctaText: {
     fontSize: 17,
     fontWeight: '600',
+  },
+  cancelText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

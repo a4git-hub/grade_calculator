@@ -5,31 +5,34 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { OnboardingStackParamList, RootStackParamList } from '../types';
 import { OnboardingNavigator } from './OnboardingNavigator';
 import { MainNavigator } from './MainNavigator';
+import { DistrictScreen } from '../screens/onboarding/DistrictScreen';
+import { PrivacyScreen } from '../screens/main/PrivacyScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /**
- * Compute where the onboarding stack should start based on persisted-district
- * presence + the explicit "change district" trigger. Three cases:
+ * Decide where the onboarding flow should start based on whether we have a
+ * previously-selected district persisted to disk:
  *
- *   - User tapped "Change district" in Settings → District screen
- *   - User has a previously-selected district (returning user) → SignInWebView
- *   - First-time user with no persisted district → Welcome
+ *   - District present (returning user, or just signed out) → SignInWebView
+ *   - No district (first-time user) → Welcome (which leads to District picker)
+ *
+ * Note: changing district from Settings does NOT route through here anymore
+ * — that flow uses the Root-level `ChangeDistrict` modal so the user can
+ * cancel without losing their session. See SettingsScreen.tsx + the modal
+ * registration below.
  */
 function pickOnboardingInitial(
   hasDistrict: boolean,
-  forceChangeDistrict: boolean,
 ): keyof OnboardingStackParamList {
-  if (forceChangeDistrict) return 'District';
-  if (hasDistrict) return 'SignInWebView';
-  return 'Welcome';
+  return hasDistrict ? 'SignInWebView' : 'Welcome';
 }
 
 export function RootNavigator() {
   const { T } = useTheme();
-  const { hydrated, district, forceChangeDistrict, inApp } = useData();
+  const { hydrated, district, inApp } = useData();
 
   // Wait for AsyncStorage hydration so we don't flash the wrong onboarding
   // initial route on cold launch. This is a single key read — fast.
@@ -41,23 +44,33 @@ export function RootNavigator() {
     );
   }
 
-  const onboardingInitial = pickOnboardingInitial(district != null, forceChangeDistrict);
+  const onboardingInitial = pickOnboardingInitial(district != null);
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
         {inApp ? (
-          // User has completed at least one full sync — show the main app.
-          // Sign-out / requestChangeDistrict resets inApp → flips back below.
-          <Stack.Screen name="Main" component={MainNavigator} />
+          // User has completed sync — show the main app + the modals that
+          // only make sense from inside the app (Change district, Privacy).
+          <Stack.Group>
+            <Stack.Screen name="Main" component={MainNavigator} />
+            <Stack.Screen
+              name="ChangeDistrict"
+              component={DistrictScreen}
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="Privacy"
+              component={PrivacyScreen}
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+          </Stack.Group>
         ) : (
           // Onboarding flow. The `key` prop forces a remount when the desired
-          // initial route changes (sign-out, change-district), since
-          // initialRouteName is only honored on first mount of the navigator.
-          <Stack.Screen
-            name="Onboarding"
-            // eslint-disable-next-line react/no-children-prop
-          >
+          // initial route changes (sign-out flips inApp false → also possibly
+          // changes district presence). initialRouteName is only honored on
+          // first mount of the navigator.
+          <Stack.Screen name="Onboarding">
             {() => (
               <OnboardingNavigator
                 key={onboardingInitial}

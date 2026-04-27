@@ -2,11 +2,14 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser, useData, useDistrict } from '../../context/DataContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
 import { timeAgo } from '../../lib/time';
+import type { RootStackParamList } from '../../types';
 
 type IconKey = keyof typeof LIcon;
 
@@ -63,20 +66,11 @@ export function SettingsScreen() {
   const { T, dark, toggleTheme } = useTheme();
   const user = useUser();
   const district = useDistrict();
-  const { syncedAt, signOut, requestChangeDistrict } = useData();
+  const { syncedAt, signOut } = useData();
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const densityToggle = (
-    <View style={[styles.segControl, { backgroundColor: T.surface3 }]}>
-      {(['Cozy', 'Compact'] as const).map((d) => (
-        <TouchableOpacity
-          key={d}
-          style={[styles.seg, d === 'Cozy' && { backgroundColor: T.surface }]}
-        >
-          <Text style={[styles.segText, { color: d === 'Cozy' ? T.text : T.text3 }]}>{d}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const openChangeDistrict = () => rootNav.navigate('ChangeDistrict');
+  const openPrivacy = () => rootNav.navigate('Privacy');
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -110,18 +104,14 @@ export function SettingsScreen() {
                 <Text style={[styles.syncedTime, { color: T.text3 }]}>{timeAgo(syncedAt)}</Text>
               </View>
             </View>
-            <LIcon.Chevron size={16} color={T.text3} />
+            {/* No chevron here — the profile card is informational, not navigable. */}
           </View>
 
-          {/* Appearance */}
+          {/* Appearance — Data density removed (no implementation, was misleading UI). */}
           <SettingsGroup title="Appearance" T={T}>
             <SettingsRow
               T={T} icon="Sparkle" title="Dark mode" sub="Automatic at sunset"
-              right={<Toggle on={dark} onPress={toggleTheme} T={T} />}
-            />
-            <SettingsRow
-              T={T} icon="Doc" title="Data density" sub="Cards on dashboard"
-              right={densityToggle} last
+              right={<Toggle on={dark} onPress={toggleTheme} T={T} />} last
             />
           </SettingsGroup>
 
@@ -131,9 +121,10 @@ export function SettingsScreen() {
               T={T} icon="Lock" title="District"
               sub={district?.name ?? 'Not selected'}
               right={<LIcon.Chevron size={14} color={T.text3} />}
-              // Tap signs out + flags forceChangeDistrict so RootNavigator
-              // sends user back to the District search screen.
-              onPress={requestChangeDistrict}
+              // Opens ChangeDistrict as a modal over Settings. The user can
+              // cancel without affecting their session, OR pick a new district
+              // which signs them out + routes to SignInWebView for the new one.
+              onPress={openChangeDistrict}
             />
             <SettingsRow T={T} icon="Doc" title="Class syllabi" sub="3 of 6 uploaded"
                          right={<LIcon.Chevron size={14} color={T.text3} />} last />
@@ -143,8 +134,11 @@ export function SettingsScreen() {
           <SettingsGroup title="About" T={T}>
             <SettingsRow T={T} icon="Bell" title="Notifications"
                          right={<Toggle on={true} onPress={() => {}} T={T} />} />
-            <SettingsRow T={T} icon="Doc" title="Privacy & data"
-                         right={<LIcon.Chevron size={14} color={T.text3} />} />
+            <SettingsRow
+              T={T} icon="Doc" title="Privacy & data"
+              right={<LIcon.Chevron size={14} color={T.text3} />}
+              onPress={openPrivacy}
+            />
             <SettingsRow
               T={T} icon="X" title="Sign out"
               right={<Text style={[styles.signOut, { color: T.bad }]}>Sign out</Text>} last
@@ -203,9 +197,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2,
     elevation: 2,
   },
-  segControl: { flexDirection: 'row', borderRadius: 8, padding: 2 },
-  seg:        { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 6 },
-  segText:    { fontSize: 12, fontWeight: '600' },
   signOut:    { fontSize: 13, fontWeight: '600' },
   version:    { textAlign: 'center', marginTop: 20 },
 });

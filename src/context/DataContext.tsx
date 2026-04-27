@@ -31,13 +31,6 @@ interface DataState {
    */
   hydrated: boolean;
   /**
-   * Set true when user taps "Change district" in Settings. Routing in
-   * RootNavigator uses this to send them to the District screen instead of
-   * SignInWebView (the normal "returning user" path). Cleared once they pick
-   * a new district.
-   */
-  forceChangeDistrict: boolean;
-  /**
    * True once first-sync has completed and the user is "in the app". Drives
    * the conditional Onboarding-vs-Main routing in RootNavigator. signOut()
    * resets to false; FirstSyncScreen flips it true on syncStep === 'done'.
@@ -48,10 +41,10 @@ interface DataState {
 interface DataContextValue extends DataState {
   setClient: (client: IcClient) => void;
   refresh: () => Promise<void>;
+  /** Clears in-memory session (preserves persisted district + hydrated flag). */
   signOut: () => void;
+  /** Persists + caches the chosen district. */
   setDistrict: (d: PersistedDistrict) => Promise<void>;
-  /** Sign out + flag forceChangeDistrict so user lands on District screen. */
-  requestChangeDistrict: () => void;
   /** Called by FirstSyncScreen when first-time sync completes. */
   enterApp: () => void;
 }
@@ -68,7 +61,6 @@ const initialState: DataState = {
   syncError: null,
   district: null,
   hydrated: false,
-  forceChangeDistrict: false,
   inApp: false,
 };
 
@@ -214,7 +206,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setDistrict = useCallback(async (d: PersistedDistrict) => {
-    setState(s => ({ ...s, district: d, forceChangeDistrict: false }));
+    setState(s => ({ ...s, district: d }));
     try {
       await saveDistrict(d);
     } catch (e) {
@@ -224,12 +216,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // eslint-disable-next-line no-console
       console.log('[DataContext] saveDistrict failed:', e);
     }
-  }, []);
-
-  const requestChangeDistrict = useCallback(() => {
-    // Clear in-memory session AND set the routing flag so RootNavigator
-    // sends the user to the District screen on the next render.
-    setState(s => ({ ...sessionResetState(s), forceChangeDistrict: true }));
   }, []);
 
   const enterApp = useCallback(() => {
@@ -253,7 +239,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       refresh,
       signOut,
       setDistrict,
-      requestChangeDistrict,
       enterApp,
     }}>
       {children}

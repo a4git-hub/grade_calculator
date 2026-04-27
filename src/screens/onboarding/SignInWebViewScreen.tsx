@@ -25,17 +25,18 @@ export function SignInWebViewScreen({ navigation }: Props) {
   const districtName = district?.name ?? '';
   const portalUrl = district?.portalUrl ?? '';
   const webRef = useRef<WebView>(null);
-  const { setClient, requestChangeDistrict } = useData();
+  const { setClient } = useData();
   const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
 
-  // The state-driven remount in RootNavigator destroys nav history when
-  // setDistrict() flips forceChangeDistrict false. Result: this screen often
-  // has nothing to go back to (returning user, post-pick, post-sign-out).
-  // When that's the case, repurpose the Back button to "Change district" so
-  // a user who picked the wrong district has an escape hatch — rather than
-  // tapping a Back that does nothing and logs a navigator warning.
+  // RootNavigator's key-based remount destroys nav history when district
+  // state changes. Result: this screen often has nothing to go back to
+  // (returning user, post-pick, post-sign-out). In that case, swap the Back
+  // button for a "Change district" affordance that pushes the District screen
+  // onto the stack so the user can re-pick if they picked wrong / for testing.
   const canGoBack = navigation.canGoBack();
-  const onBackPress = canGoBack ? () => navigation.goBack() : requestChangeDistrict;
+  const onBackPress = canGoBack
+    ? () => navigation.goBack()
+    : () => navigation.replace('District');
   const backLabel = canGoBack ? 'Back' : 'Change district';
 
   // Defensive: if somehow we landed here without a district in context
