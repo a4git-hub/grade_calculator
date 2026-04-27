@@ -41,7 +41,7 @@ function StepDots({ T }: { T: any }) {
 
 export function FirstSyncScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
-  const { syncStep, syncError, refresh } = useData();
+  const { syncStep, syncError, refresh, enterApp } = useData();
 
   const pulseScale   = useRef(new Animated.Value(1)).current;
   const pulseOpacity = useRef(new Animated.Value(1)).current;
@@ -51,15 +51,15 @@ export function FirstSyncScreen({ navigation }: Props) {
     refresh();
   }, [refresh]);
 
-  // Auto-advance to Main once sync completes.
+  // Auto-advance to Main once sync completes. enterApp() flips DataContext's
+  // inApp flag — RootNavigator's conditional rendering swaps Onboarding for
+  // Main automatically. 300ms keeps the "Done" state visible briefly.
   useEffect(() => {
     if (syncStep === 'done') {
-      const t = setTimeout(() => {
-        navigation.getParent<any>()?.reset({ index: 0, routes: [{ name: 'Main' }] });
-      }, 300);
+      const t = setTimeout(() => enterApp(), 300);
       return () => clearTimeout(t);
     }
-  }, [syncStep, navigation]);
+  }, [syncStep, enterApp]);
 
   // Pulse animation for the active indicator ring.
   useEffect(() => {

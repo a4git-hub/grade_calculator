@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
 import { searchDistricts, type IcDistrictResult } from '../../services/icDistrictSearch';
@@ -46,6 +47,7 @@ function initialsForDistrict(name: string): string {
 
 export function DistrictScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
+  const { setDistrict } = useData();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<IcDistrictResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,10 +102,14 @@ export function DistrictScreen({ navigation }: Props) {
   const canContinue = selected != null;
 
   const goToSignIn = (district: IcDistrictResult) => {
-    navigation.navigate('SignInWebView', {
-      districtName: district.district_name,
+    // Persist + write to DataContext. SignInWebView reads from context, so we
+    // don't pass route params. This also clears forceChangeDistrict so the
+    // "Change district" flow lands cleanly on SignInWebView next time.
+    void setDistrict({
+      name: district.district_name,
       portalUrl: district.student_login_url,
     });
+    navigation.navigate('SignInWebView');
   };
 
   return (

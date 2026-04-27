@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ClassItem, SubjectDetail, AttentionGroup } from '../types';
 import type { UserProfile } from '../services/icTypes';
 import { IcClient } from '../services/icClient';
@@ -7,6 +7,9 @@ import {
   mapRecentlyScoredToAttention, computeGpa, mapIcGpa, pickActiveTermGrade,
   type GpaSummary,
 } from '../services/icMapper';
+import {
+  loadDistrict, saveDistrict, type PersistedDistrict,
+} from '../lib/persistDistrict';
 
 export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'categories' | 'detail' | 'gpa' | 'done';
 
@@ -20,12 +23,37 @@ interface DataState {
   syncedAt: number | null;
   syncStep: SyncStep;
   syncError: string | null;
+  /** Persisted district selection. Hydrated from AsyncStorage on mount. */
+  district: PersistedDistrict | null;
+  /**
+   * False until AsyncStorage hydration completes. RootNavigator gates on this
+   * so we don't flash the wrong onboarding initial route during cold launch.
+   */
+  hydrated: boolean;
+  /**
+   * Set true when user taps "Change district" in Settings. Routing in
+   * RootNavigator uses this to send them to the District screen instead of
+   * SignInWebView (the normal "returning user" path). Cleared once they pick
+   * a new district.
+   */
+  forceChangeDistrict: boolean;
+  /**
+   * True once first-sync has completed and the user is "in the app". Drives
+   * the conditional Onboarding-vs-Main routing in RootNavigator. signOut()
+   * resets to false; FirstSyncScreen flips it true on syncStep === 'done'.
+   */
+  inApp: boolean;
 }
 
 interface DataContextValue extends DataState {
   setClient: (client: IcClient) => void;
   refresh: () => Promise<void>;
   signOut: () => void;
+  setDistrict: (d: PersistedDistrict) => Promise<void>;
+  /** Sign out + flag forceChangeDistrict so user lands on District screen. */
+  requestChangeDistrict: () => void;
+  /** Called by FirstSyncScreen when first-time sync completes. */
+  enterApp: () => void;
 }
 
 const initialState: DataState = {
@@ -38,7 +66,28 @@ const initialState: DataState = {
   syncedAt: null,
   syncStep: 'idle',
   syncError: null,
+  district: null,
+  hydrated: false,
+  forceChangeDistrict: false,
+  inApp: false,
 };
+
+/** Fields that get cleared on sign-out (everything except district + hydrated). */
+function sessionResetState(prev: DataState): DataState {
+  return {
+    ...prev,
+    client: null,
+    user: null,
+    classes: [],
+    subjectDetails: {},
+    attention: [],
+    gpa: { uw: 0, w: 0, trend: 0 },
+    syncedAt: null,
+    syncStep: 'idle',
+    syncError: null,
+    inApp: false,
+  };
+}
 
 const DataContext = createContext<DataContextValue | null>(null);
 
@@ -149,11 +198,53 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    setState(initialState);
+    // Preserves district + hydrated; clears everything else.
+    setState(s => sessionResetState(s));
+  }, []);
+
+  const setDistrict = useCallback(async (d: PersistedDistrict) => {
+    setState(s => ({ ...s, district: d, forceChangeDistrict: false }));
+    try {
+      await saveDistrict(d);
+    } catch (e) {
+      // Persistence failure is non-fatal — in-memory state still updated so
+      // the current session works. Next cold launch would see no persisted
+      // district and treat as first-time. Worst case = one extra District pick.
+      // eslint-disable-next-line no-console
+      console.log('[DataContext] saveDistrict failed:', e);
+    }
+  }, []);
+
+  const requestChangeDistrict = useCallback(() => {
+    // Clear in-memory session AND set the routing flag so RootNavigator
+    // sends the user to the District screen on the next render.
+    setState(s => ({ ...sessionResetState(s), forceChangeDistrict: true }));
+  }, []);
+
+  const enterApp = useCallback(() => {
+    setState(s => ({ ...s, inApp: true }));
+  }, []);
+
+  // Hydrate persisted district once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    loadDistrict().then(d => {
+      if (cancelled) return;
+      setState(s => ({ ...s, district: d, hydrated: true }));
+    });
+    return () => { cancelled = true; };
   }, []);
 
   return (
-    <DataContext.Provider value={{ ...state, setClient, refresh, signOut }}>
+    <DataContext.Provider value={{
+      ...state,
+      setClient,
+      refresh,
+      signOut,
+      setDistrict,
+      requestChangeDistrict,
+      enterApp,
+    }}>
       {children}
     </DataContext.Provider>
   );
@@ -172,3 +263,4 @@ export const useSubjectDetail = (id: string): SubjectDetail | null =>
   useDataContext().subjectDetails[id] ?? null;
 export const useAttention = (): AttentionGroup[] => useDataContext().attention;
 export const useGpa = (): GpaSummary => useDataContext().gpa;
+export const useDistrict = (): PersistedDistrict | null => useDataContext().district;

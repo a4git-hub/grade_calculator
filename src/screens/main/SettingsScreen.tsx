@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
-import { useUser, useData } from '../../context/DataContext';
+import { useUser, useData, useDistrict } from '../../context/DataContext';
 import { monoStyle, Fonts } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
 import { timeAgo } from '../../lib/time';
@@ -23,13 +23,19 @@ function Toggle({ on, onPress, T }: { on: boolean; onPress: () => void; T: any }
 }
 
 function SettingsRow({
-  T, icon, title, sub, right, last,
+  T, icon, title, sub, right, last, onPress,
 }: {
-  T: any; icon: IconKey; title: string; sub?: string; right?: React.ReactNode; last?: boolean;
+  T: any; icon: IconKey; title: string; sub?: string; right?: React.ReactNode;
+  last?: boolean; onPress?: () => void;
 }) {
   const Ic = LIcon[icon];
+  const Container: any = onPress ? TouchableOpacity : View;
+  const containerProps = onPress ? { onPress, activeOpacity: 0.6 } : {};
   return (
-    <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: T.hairline }]}>
+    <Container
+      {...containerProps}
+      style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: T.hairline }]}
+    >
       <View style={[styles.rowIcon, { backgroundColor: T.surface3 }]}>
         {Ic && <Ic size={16} color={T.text2} />}
       </View>
@@ -38,7 +44,7 @@ function SettingsRow({
         {sub ? <Text style={[styles.rowSub, { color: T.text3 }]}>{sub}</Text> : null}
       </View>
       {right}
-    </View>
+    </Container>
   );
 }
 
@@ -56,7 +62,8 @@ function SettingsGroup({ title, T, children }: { title: string; T: any; children
 export function SettingsScreen() {
   const { T, dark, toggleTheme } = useTheme();
   const user = useUser();
-  const { syncedAt } = useData();
+  const district = useDistrict();
+  const { syncedAt, signOut, requestChangeDistrict } = useData();
 
   const densityToggle = (
     <View style={[styles.segControl, { backgroundColor: T.surface3 }]}>
@@ -120,8 +127,14 @@ export function SettingsScreen() {
 
           {/* Account & Sync */}
           <SettingsGroup title="Account & Sync" T={T}>
-            <SettingsRow T={T} icon="Lock" title="District" sub="Westview Unified · ClassLink"
-                         right={<LIcon.Chevron size={14} color={T.text3} />} />
+            <SettingsRow
+              T={T} icon="Lock" title="District"
+              sub={district?.name ?? 'Not selected'}
+              right={<LIcon.Chevron size={14} color={T.text3} />}
+              // Tap signs out + flags forceChangeDistrict so RootNavigator
+              // sends user back to the District search screen.
+              onPress={requestChangeDistrict}
+            />
             <SettingsRow T={T} icon="Doc" title="Class syllabi" sub="3 of 6 uploaded"
                          right={<LIcon.Chevron size={14} color={T.text3} />} last />
           </SettingsGroup>
@@ -135,6 +148,10 @@ export function SettingsScreen() {
             <SettingsRow
               T={T} icon="X" title="Sign out"
               right={<Text style={[styles.signOut, { color: T.bad }]}>Sign out</Text>} last
+              // signOut clears in-memory session state but PRESERVES the
+              // persisted district. Next launch / next render lands on
+              // SignInWebView (returning-user path) — no re-pick required.
+              onPress={signOut}
             />
           </SettingsGroup>
 

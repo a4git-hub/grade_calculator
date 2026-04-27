@@ -64,12 +64,13 @@ export type OnboardingStackParamList = {
   Welcome: undefined;
   District: undefined;
   /**
-   * The selected district's display name + portal URL, passed in by
-   * DistrictScreen after the user picks from search results. We pass the
-   * URL directly (instead of an ID + lookup table) so the SignInWebView
-   * is district-agnostic — works for any IC tenant nationwide.
+   * No route params — SignInWebView reads the selected district directly from
+   * DataContext (`useDistrict()`). This makes the screen reachable as the
+   * onboarding entry point for returning users (RootNavigator picks it as
+   * the initial route when a persisted district exists), not just as a step
+   * after DistrictScreen.
    */
-  SignInWebView: { districtName: string; portalUrl: string };
+  SignInWebView: undefined;
   FirstSync: undefined;
 };
 

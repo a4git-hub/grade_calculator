@@ -9,22 +9,33 @@ import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import { useData } from '../../context/DataContext';
+import { useData, useDistrict } from '../../context/DataContext';
 import { captureIcClient, isPostLoginUrl } from '../../hooks/useIcAuth';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'SignInWebView'>;
 
 type Phase = 'awaiting' | 'capturing' | 'error';
 
-export function SignInWebViewScreen({ navigation, route }: Props) {
+export function SignInWebViewScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
-  // Display name + URL come directly from DistrictScreen's search result.
-  // No DISTRICTS lookup table needed — works for any IC tenant nationwide.
-  const districtName = route.params.districtName;
-  const portalUrl = route.params.portalUrl;
+  // District comes from DataContext (persisted across launches). Used both
+  // when the user just picked a district and when they're a returning user
+  // landing here directly via RootNavigator's initial-route logic.
+  const district = useDistrict();
+  const districtName = district?.name ?? '';
+  const portalUrl = district?.portalUrl ?? '';
   const webRef = useRef<WebView>(null);
   const { setClient } = useData();
   const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
+
+  // Defensive: if somehow we landed here without a district in context
+  // (shouldn't happen with current routing, but bad data shouldn't crash),
+  // bounce to the District picker.
+  React.useEffect(() => {
+    if (!district) {
+      navigation.replace('District');
+    }
+  }, [district, navigation]);
 
   const [phase, setPhase] = useState<Phase>('awaiting');
 
