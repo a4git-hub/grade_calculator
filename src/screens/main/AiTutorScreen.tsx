@@ -104,34 +104,43 @@ export function AiTutorScreen() {
             Select a class and a prompt below to get personalized guidance based on your syllabus and current progress.
           </Text>
 
-          {/* Class picker dropdown — sits directly above the action cards.
-              Single rounded surface containing the trigger row (always visible)
-              and option rows (only when expanded). The classes the user can
-              switch to share visual language with the action cards beneath. */}
-          <View style={[
-            styles.classPicker,
-            {
-              backgroundColor: T.surface,
-              borderColor: classPickerOpen ? T.accent : T.hairline,
-            },
-          ]}>
-            <Text style={[monoStyle(T), styles.classPickerLabel]}>Class</Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setClassPickerOpen(o => !o)}
-              style={styles.classTrigger}
-            >
-              <Text style={[styles.classTriggerText, { color: T.text }]} numberOfLines={1}>
-                {activeClass.name}
-              </Text>
-              <View style={{
-                transform: [{ rotate: classPickerOpen ? '-90deg' : '90deg' }],
-              }}>
-                <LIcon.Chevron size={16} color={T.text2} stroke={2} />
-              </View>
-            </TouchableOpacity>
+          {/* Class picker dropdown.
+              Trigger always renders in normal flow. When opened, the option
+              list renders as an ABSOLUTE-POSITIONED overlay below the trigger
+              so it floats over the action cards beneath instead of pushing
+              them down. zIndex on the wrapper ensures the overlay stacks
+              above sibling content; shadow + accent border give it the
+              "elevated, in-front" look. */}
+          <View style={styles.classPickerWrapper}>
+            <View style={[
+              styles.classTriggerCard,
+              {
+                backgroundColor: T.surface,
+                borderColor: classPickerOpen ? T.accent : T.hairline,
+              },
+            ]}>
+              <Text style={[monoStyle(T), styles.classPickerLabel]}>Class</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setClassPickerOpen(o => !o)}
+                style={styles.classTrigger}
+              >
+                <Text style={[styles.classTriggerText, { color: T.text }]} numberOfLines={1}>
+                  {activeClass.name}
+                </Text>
+                <View style={{
+                  transform: [{ rotate: classPickerOpen ? '-90deg' : '90deg' }],
+                }}>
+                  <LIcon.Chevron size={16} color={T.text2} stroke={2} />
+                </View>
+              </TouchableOpacity>
+            </View>
+
             {classPickerOpen && (
-              <View style={[styles.classOptions, { borderTopColor: T.hairline }]}>
+              <View style={[
+                styles.classOptionsOverlay,
+                { backgroundColor: T.surface, borderColor: T.accent },
+              ]}>
                 {classes.map(c => {
                   const isActive = c.id === activeClassId;
                   return (
@@ -226,8 +235,15 @@ const styles = StyleSheet.create({
   kicker: { marginBottom: 6 },
   title:  { fontSize: 28, fontWeight: '700', letterSpacing: -0.7, lineHeight: 32, marginBottom: 6 },
   sub:    { fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  // Class picker dropdown — single surface, expands inline when opened.
-  classPicker: {
+  // Class picker dropdown — trigger in normal flow, options overlay floats
+  // above siblings when opened (zIndex + absolute positioning).
+  classPickerWrapper: {
+    position: 'relative',
+    // High zIndex so the overlay child stacks above the action cards which
+    // are siblings of this wrapper inside the same ScrollView content view.
+    zIndex: 100,
+  },
+  classTriggerCard: {
     borderRadius: 14,
     borderWidth: 1,
     overflow: 'hidden',
@@ -250,9 +266,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 12,
   },
-  classOptions: {
-    borderTopWidth: 1,
+  classOptionsOverlay: {
+    // Position: just below the trigger card with a small gap.
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 6,
+    borderRadius: 14,
+    borderWidth: 1,
     paddingVertical: 4,
+    // Floating elevation — visually distinct from the trigger so the user
+    // reads them as separate stacked surfaces.
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   },
   classOption: {
     flexDirection: 'row',
