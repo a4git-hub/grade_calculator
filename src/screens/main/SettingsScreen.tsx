@@ -120,23 +120,9 @@ export function SettingsScreen() {
 
           {/* Account & Sync */}
           <SettingsGroup title="Account & Sync" T={T}>
-            <SettingsRow T={T} icon="Sync" title="Sync schedule" sub="Every 30 minutes"
-                         right={<LIcon.Chevron size={14} color={T.text3} />} />
             <SettingsRow T={T} icon="Lock" title="District" sub="Westview Unified · ClassLink"
                          right={<LIcon.Chevron size={14} color={T.text3} />} />
             <SettingsRow T={T} icon="Doc" title="Class syllabi" sub="3 of 6 uploaded"
-                         right={<LIcon.Chevron size={14} color={T.text3} />} last />
-          </SettingsGroup>
-
-          {/* AI Assessment */}
-          <SettingsGroup title="AI Assessment" T={T}>
-            <SettingsRow
-              T={T} icon="Sparkle" title="Daily prompt limit" sub="15 per day · resets 12 AM"
-              right={
-                <Text style={[styles.limitCount, { color: T.accent }]}>14 left</Text>
-              }
-            />
-            <SettingsRow T={T} icon="Target" title="Plan tone" sub="Friendly peer"
                          right={<LIcon.Chevron size={14} color={T.text3} />} last />
           </SettingsGroup>
 
@@ -203,7 +189,6 @@ const styles = StyleSheet.create({
   segControl: { flexDirection: 'row', borderRadius: 8, padding: 2 },
   seg:        { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 6 },
   segText:    { fontSize: 12, fontWeight: '600' },
-  limitCount: { fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
   signOut:    { fontSize: 13, fontWeight: '600' },
   version:    { textAlign: 'center', marginTop: 20 },
 });
