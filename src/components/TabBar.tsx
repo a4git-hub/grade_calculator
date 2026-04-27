@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LIcon } from './LIcon';
 import { ThemeTokens } from '../tokens';
+import { useAttention } from '../context/DataContext';
 
 interface TabConfig {
   route: string;
@@ -15,8 +16,8 @@ interface TabConfig {
 
 const TABS: TabConfig[] = [
   { route: 'ClassesStack', label: 'Classes',   icon: 'Home' },
-  { route: 'Attention',    label: 'Attention', icon: 'Bell', badge: 6 },
-  { route: 'WhatIf',       label: 'What-If',   icon: 'Calc' },
+  { route: 'Attention',    label: 'Attention', icon: 'Bell' },
+  { route: 'AiTutor',      label: 'AI Tutor',  icon: 'Sparkle' },
   { route: 'Settings',     label: 'Settings',  icon: 'Gear' },
 ];
 
@@ -28,6 +29,8 @@ interface Props extends BottomTabBarProps {
 export function CustomTabBar({ state, navigation, T, dark }: Props) {
   const insets = useSafeAreaInsets();
   const IconComp = LIcon;
+  const attentionGroups = useAttention();
+  const totalAttention = attentionGroups.reduce((acc, g) => acc + g.items.length, 0);
 
   return (
     <View style={[styles.wrapper, { bottom: 0 }]}>
@@ -50,9 +53,9 @@ export function CustomTabBar({ state, navigation, T, dark }: Props) {
               >
                 <View style={styles.iconWrap}>
                   <Ic size={22} color={focused ? T.accent : T.text3} stroke={focused ? 2 : 1.7} />
-                  {tab.badge != null && (
+                  {tab.route === 'Attention' && totalAttention > 0 && (
                     <View style={[styles.badge, { backgroundColor: T.bad }]}>
-                      <Text style={styles.badgeText}>{tab.badge}</Text>
+                      <Text style={styles.badgeText}>{totalAttention}</Text>
                     </View>
                   )}
                 </View>

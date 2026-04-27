@@ -176,7 +176,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const subjectDetails = mapGradesToSubjectDetails(
         gradesRaw, recentRaw, categoriesBySection, detailBySection,
       );
-      const attention = mapRecentlyScoredToAttention(recentRaw);
+      
+      const activeTermMap: Record<string, number> = {};
+      for (const enrollment of gradesRaw) {
+        for (const course of enrollment.courses) {
+          const task = pickActiveTermGrade(course.gradingTasks);
+          if (task?.termID) {
+            activeTermMap[String(course.sectionID)] = task.termID;
+          }
+        }
+      }
+      
+      const attention = mapRecentlyScoredToAttention(recentRaw, activeTermMap);
       const computedGpa = computeGpa(classes);
       const gpa = gpaRaw ? mapIcGpa(gpaRaw, computedGpa) : computedGpa;
 

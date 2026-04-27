@@ -30,6 +30,9 @@ export interface Assignment {
   pct: string;
   cat: string;
   pos: 'good' | 'warn' | 'bad';
+  earned?: number;
+  possible?: number;
+  date?: string;
 }
 
 export interface SubjectDetail {
@@ -83,6 +86,6 @@ export type ClassesStackParamList = {
 export type MainTabParamList = {
   ClassesStack: undefined;
   Attention: undefined;
-  WhatIf: undefined;
+  AiTutor: undefined;
   Settings: undefined;
 };

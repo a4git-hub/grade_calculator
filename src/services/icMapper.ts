@@ -223,6 +223,9 @@ function recentlyScoredToAssignment(item: RawRecentlyScored): Assignment {
     pct: pctStr,
     cat,
     pos: !Number.isNaN(pctValue) ? colorForPct(pctValue) : 'warn',
+    earned: !Number.isNaN(earned) ? earned : undefined,
+    possible: possible > 0 ? possible : undefined,
+    date: item.scoreModifiedDate || undefined,
   };
 }
 
@@ -270,7 +273,7 @@ export function mapGradesToClasses(
       if (course.dropped) continue;
       const task = pickActiveTermGrade(course.gradingTasks);
       const pct = task?.progressPercent ?? 0;
-      const letter = task?.progressScore?.trim() || letterForPct(pct);
+      const letter = task?.progressScore?.trim() || (task ? letterForPct(pct) : 'N/A');
       const sid = String(course.sectionID);
       classes.push({
         id: sid,
@@ -282,7 +285,7 @@ export function mapGradesToClasses(
         pct,
         // Trend needs history (grades/detail endpoint) — stays 0 until wired.
         trend: 0,
-        color: colorForPct(pct),
+        color: task ? colorForPct(pct) : 'warn',
         next: '',
         flags: flagCounts[sid] ?? 0,
       });
@@ -397,34 +400,60 @@ export function categoriesFromDetail(
 }
 
 /**
- * Build a per-section grade trajectory from the assignment list. Each scored
- * assignment becomes a HistoryPoint sorted by scoreModifiedDate. We use the
- * raw assignment percentage rather than computing a running cumulative
- * average — IC's actual grade calc applies category weights, drop policies,
- * and multipliers server-side, and approximating that locally produces
- * misleading numbers. Plotting per-assignment percentages directly is the
- * honest visualization: it shows the student's score variance over time.
+ * Build a per-section grade trajectory from the assignment list.
+ * We compute a running weighted average as assignments are added chronologically,
+ * accurately tracking how the overall grade evolved.
  */
-function buildHistoryForSection(items: RawRecentlyScored[]): Array<{ d: string; v: number }> {
+function buildHistoryForSection(items: Assignment[], categories: { name: string; weight: number; pct: number; count: number }[]): Array<{ d: string; v: number }> {
   const dated = items
-    .filter(it => it.scoreModifiedDate && it.scorePercentage != null)
-    .map(it => {
-      const v = parseFloat(it.scorePercentage ?? '');
-      return Number.isFinite(v) ? { date: it.scoreModifiedDate, v } : null;
-    })
-    .filter((x): x is { date: string; v: number } => x !== null);
+    .filter(it => it.date && it.earned !== undefined && it.possible !== undefined)
+    .sort((a, b) => a.date!.localeCompare(b.date!));
 
-  dated.sort((a, b) => a.date.localeCompare(b.date));
+  const history: Array<{ d: string; v: number }> = [];
+  const catSums: Record<string, { earned: number; possible: number }> = {};
 
-  // Trim to last 12 points so the sparkline doesn't get too dense.
-  const recent = dated.slice(-12);
+  const useWeights = categories.some(c => c.weight > 0);
 
-  return recent.map(({ date, v }, i) => {
-    // Render as "Mon DD" for the first/last labels in the sparkline footer.
-    // Intermediate points just need the date string; the chart plots them.
-    const d = formatChartDate(date, i === 0 || i === recent.length - 1);
-    return { d, v: Math.round(v * 100) / 100 };
-  });
+  for (let i = 0; i < dated.length; i++) {
+    const it = dated[i];
+    if (!catSums[it.cat]) catSums[it.cat] = { earned: 0, possible: 0 };
+    catSums[it.cat].earned += it.earned!;
+    catSums[it.cat].possible += it.possible!;
+
+    let totalWeight = 0;
+    let earnedWeight = 0;
+    let v = 0;
+
+    if (!useWeights) {
+      let te = 0;
+      let tp = 0;
+      for (const catName of Object.keys(catSums)) {
+        te += catSums[catName].earned;
+        tp += catSums[catName].possible;
+      }
+      if (tp > 0) v = (te / tp) * 100;
+    } else {
+      for (const catName of Object.keys(catSums)) {
+        const sum = catSums[catName];
+        const catDef = categories.find(c => c.name === catName);
+        if (sum.possible > 0 && catDef && catDef.weight > 0) {
+          const catPct = sum.earned / sum.possible;
+          earnedWeight += catPct * catDef.weight;
+          totalWeight += catDef.weight;
+        }
+      }
+      if (totalWeight > 0) v = (earnedWeight / totalWeight) * 100;
+    }
+
+    if (v > 0) {
+      history.push({
+        d: formatChartDate(it.date!, i === 0 || i === dated.length - 1),
+        v: Math.round(v * 100) / 100,
+      });
+    }
+  }
+
+  return history;
 }
 
 const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -461,35 +490,76 @@ export function mapGradesToSubjectDetails(
     for (const course of enrollment.courses) {
       if (course.dropped) continue;
       const sid = String(course.sectionID);
-      const recentForCourse = recentBySid[sid] ?? [];
+      const task = pickActiveTermGrade(course.gradingTasks);
+      const activeTermID = task?.termID;
+      
+      // Filter recent assignments to only include those matching the active term
+      let recentForCourse = recentBySid[sid] ?? [];
+      
       const cats = catsBySid[sid];
       const detail = detailBySid[sid];
 
-      // Categories preference: enrich /categories with detail when both available.
-      // If only detail is available, build from detail. If only /categories, use as-is.
-      // If neither, empty.
       let categories: ReturnType<typeof mapCategories> = [];
+      let mappedAssignments: Assignment[] = [];
+
+      if (detail) {
+        const entry = pickCurrentDetailEntry(detail);
+        if (entry) {
+          // Build assignments directly from the detail entry so we get exact category linkage
+          for (const dc of entry.categories) {
+            if (Array.isArray(dc.assignments)) {
+              for (const rawAssign of dc.assignments) {
+                const a = recentlyScoredToAssignment(rawAssign);
+                a.cat = dc.name; // Force the category name to perfectly match
+                mappedAssignments.push(a);
+              }
+            }
+          }
+        }
+      }
+
       if (cats && cats.length > 0) {
         categories = enrichCategoriesWithDetail(mapCategories(cats), detail);
       } else if (detail) {
         categories = categoriesFromDetail(detail);
       }
+      
+      // Fallback: If we couldn't get assignments from detail endpoint, use the recent list
+      if (mappedAssignments.length === 0 && recentForCourse.length > 0) {
+        if (activeTermID) {
+          recentForCourse = recentForCourse.filter(item => item.termIDs?.includes(activeTermID));
+        }
+        mappedAssignments = recentForCourse.map(recentlyScoredToAssignment);
+      }
 
       out[sid] = {
         categories,
-        history: buildHistoryForSection(recentForCourse),
-        assignments: recentForCourse.map(recentlyScoredToAssignment),
+        history: buildHistoryForSection(mappedAssignments, categories),
+        assignments: mappedAssignments,
       };
     }
   }
   return out;
 }
 
-export function mapRecentlyScoredToAttention(raw: RawRecentlyScored[]): AttentionGroup[] {
+export function mapRecentlyScoredToAttention(
+  raw: RawRecentlyScored[],
+  activeTermMap?: Record<string, number>
+): AttentionGroup[] {
   const flagged: AttentionItem[] = [];
   const lowScore: AttentionItem[] = [];
 
+  // Use a sensible cutoff (150 days ago) to filter out last semester's missing work
+  // instead of relying on IC's incomplete termIDs array.
+  const d = new Date();
+  d.setDate(d.getDate() - 150);
+  const cutoff = d.toISOString();
+
   for (const item of raw) {
+    if ((item.scoreModifiedDate && item.scoreModifiedDate < cutoff) || 
+        (item.dueDate && item.dueDate < cutoff)) {
+      continue;
+    }
     const isFlagged = item.late || item.missing || item.cheated || item.dropped || item.incomplete;
     const pct = parseFloat(item.scorePercentage ?? '');
     const score = item.scorePoints != null && item.totalPoints != null

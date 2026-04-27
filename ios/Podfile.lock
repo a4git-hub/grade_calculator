@@ -2406,7 +2406,7 @@ SPEC CHECKSUMS:
   ExpoModulesCore: 1a328eb3e445ae57848d5fc87c6894ac4a0959f8
   ExpoModulesJSI: 24121c9a2f32d5f6b6ca2f7ff54925be716d5841
   FBLazyVector: 1cf192076c7bab73c37241b4b736c1bec44ce1aa
-  hermes-engine: d27bfdc3b7478215653afa3832e06bafc1d4554e
+  hermes-engine: 30a6a8bfe0a1e4406933ed9793afa103bbb8257f
   NitroCookies: 2f49d1935f61cdbc7b62c8de092e1ac3e11566d1
   NitroModules: 4623499842af916a6cb462950b024a47eef7d6ea
   RCTDeprecation: 75c68c350a447e5fa08fd56b5f3b24251187e3da
@@ -2417,7 +2417,7 @@ SPEC CHECKSUMS:
   React: dc5437d5f15644f5128d0b612eb9109bb3065821
   React-callinvoker: ea68f73ff05ecc8ea4629cc82b9b4ac2868b721c
   React-Core: 7ef805822e79589f889ad579a6082198ca43cded
-  React-Core-prebuilt: daeffc609c4a80fc874b32e2d1578d8cdb53e61a
+  React-Core-prebuilt: 44668c77e71d3936791cc317838efd2856b50bd7
   React-CoreModules: f1815f608e5a94ec292c9edf7f7fa791b4e8e02f
   React-cxxreact: ba13a913d6cbf6a81941f390006ee00e8bb0edff
   React-debug: 7c4f340ad7be7d5c2ceb1b5cb8e6741c551eaad7
@@ -2480,7 +2480,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: e79cfbe6d375f9b6722eb7a7728248436d9d9409
   ReactCodegen: 318bb07c4d55570c8ca2c608673a83ca15b54fb1
   ReactCommon: 26bfa2053c76bf49868ac7aa643eba7ace6e2d5d
-  ReactNativeDependencies: 6134fa61d09efe16f4537094399fa3854ba97ee4
+  ReactNativeDependencies: 8b02079ba3c99be490cb854ac6234a66ccff5150
   RNCAsyncStorage: 3a4f5e2777dae1688b781a487923a08569e27fe4
   RNScreens: 6cb648bdad8fe9bee9259fe144df95b6d1d5b707
   RNSVG: 7bf7808626c62cdf93911573b9358f1601d58003

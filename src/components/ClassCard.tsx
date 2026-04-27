@@ -8,17 +8,22 @@ import { LIcon } from './LIcon';
 interface Props {
   item: ClassItem;
   T: ThemeTokens;
+  history?: { d: string; v: number }[];
   onPress: () => void;
 }
 
-export function ClassCard({ item, T, onPress }: Props) {
+export function ClassCard({ item, T, history, onPress }: Props) {
   const col = gradeColor(T, item.color);
   const trendUp = item.trend > 0;
   const trendFlat = item.trend === 0;
-  const sparkData = [
+  
+  let sparkData = [
     item.pct - 1.4, item.pct - 1.0, item.pct - 0.7,
     item.pct - 0.3, item.pct - 0.1, item.pct,
   ];
+  if (history && history.length > 0) {
+    sparkData = history.slice(-10).map(h => h.v);
+  }
   const pctStr = item.pct % 1 === 0 ? `${item.pct}%` : `${item.pct.toFixed(2)}%`;
 
   return (

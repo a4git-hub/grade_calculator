@@ -36,10 +36,10 @@ export function DashboardScreen({ navigation }: Props) {
   const user = useUser();
   const classes = useClasses();
   const gpa = useGpa();
-  const { syncedAt } = useData();
+  const { subjectDetails, syncedAt } = useData();
   const today = formatToday();
   const summary = buildSummary(classes);
-  const trendUp = gpa.trend >= 0;
+  const daysLeft = Math.max(0, Math.ceil((new Date('2026-06-05').getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -68,22 +68,19 @@ export function DashboardScreen({ navigation }: Props) {
           {/* GPA strip */}
           <View style={[styles.gpaCard, { backgroundColor: T.surface, borderColor: T.hairline }]}>
             <View style={styles.gpaCell}>
-              <Text style={[monoStyle(T)]}>GPA · Unweighted</Text>
+              <Text style={[monoStyle(T)]} numberOfLines={1}>GPA · UW</Text>
               <Text style={[styles.gpaVal, { color: T.text }]}>{gpa.uw.toFixed(2)}</Text>
             </View>
             <View style={[styles.gpaDivider, { borderColor: T.hairline }]} />
             <View style={styles.gpaCell}>
-              <Text style={[monoStyle(T)]}>GPA · Weighted</Text>
+              <Text style={[monoStyle(T)]} numberOfLines={1}>GPA · W</Text>
               <Text style={[styles.gpaVal, { color: T.accent }]}>{gpa.w.toFixed(2)}</Text>
             </View>
             <View style={[styles.gpaDivider, { borderColor: T.hairline }]} />
             <View style={styles.gpaCell}>
-              <Text style={[monoStyle(T)]}>Term trend</Text>
-              <View style={styles.trendRow}>
-                <LIcon.Trend size={14} color={trendUp ? T.good : T.bad} stroke={2.4} />
-                <Text style={[styles.gpaVal, { color: trendUp ? T.good : T.bad }]}>
-                  {gpa.trend === 0 ? '—' : `${trendUp ? '+' : ''}${gpa.trend.toFixed(2)}`}
-                </Text>
+              <Text style={[monoStyle(T)]} numberOfLines={1}>Days left</Text>
+              <View style={[styles.trendRow, { marginTop: 0 }]}>
+                <Text style={[styles.gpaVal, { color: T.text }]}>{daysLeft}</Text>
               </View>
             </View>
           </View>
@@ -98,14 +95,18 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.cardList}>
-            {classes.map((c) => (
-              <ClassCard
-                key={c.id}
-                item={c}
-                T={T}
-                onPress={() => navigation.navigate('SubjectDetail', { classId: c.id })}
-              />
-            ))}
+            {classes.map((c) => {
+              const history = subjectDetails[c.id]?.history || [];
+              return (
+                <ClassCard
+                  key={c.id}
+                  item={c}
+                  T={T}
+                  history={history}
+                  onPress={() => navigation.navigate('SubjectDetail', { classId: c.id })}
+                />
+              );
+            })}
           </View>
 
           <View style={{ height: 24 }} />
