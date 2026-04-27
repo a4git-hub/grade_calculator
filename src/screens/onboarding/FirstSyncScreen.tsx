@@ -20,11 +20,12 @@ const CIRC   = 2 * Math.PI * RADIUS;
 /** Map syncStep → [progress 0–1, display label] */
 const STEP_INFO: Record<string, [number, string]> = {
   idle:       [0,    'Preparing…'],
-  user:       [0.15, 'Loading your profile…'],
-  grades:     [0.35, 'Pulling your grades…'],
-  attention:  [0.55, 'Loading assignments…'],
-  categories: [0.75, 'Fetching grade categories…'],
-  gpa:        [0.90, 'Computing your GPA…'],
+  user:       [0.10, 'Loading your profile…'],
+  grades:     [0.25, 'Pulling your grades…'],
+  attention:  [0.45, 'Loading assignments…'],
+  categories: [0.60, 'Fetching grade categories…'],
+  detail:     [0.80, 'Loading per-class detail…'],
+  gpa:        [0.92, 'Computing your GPA…'],
   done:       [1,    'All set!'],
 };
 

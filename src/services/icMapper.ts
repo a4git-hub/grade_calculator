@@ -4,6 +4,7 @@ import type {
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored,
   RawGradingTask, UserProfile, RawGpaResponse, RawCategory,
+  RawGradeDetail, RawGradeDetailEntry,
 } from './icTypes';
 
 export interface GpaSummary {
@@ -292,9 +293,8 @@ export function mapGradesToClasses(
 
 /**
  * Map IC's per-section category definitions into the app's Category shape.
- * pct + count default to 0 because the categories endpoint provides
- * DEFINITIONS only (name + weight). Per-category student performance lives
- * in /grades/detail/{sid} — when wired, those fields fill in from there.
+ * pct + count default to 0 — populated via enrichCategoriesWithDetail()
+ * when /grades/detail data is available.
  */
 export function mapCategories(raw: RawCategory[]): Array<{ name: string; weight: number; pct: number; count: number }> {
   return raw
@@ -308,9 +308,92 @@ export function mapCategories(raw: RawCategory[]): Array<{ name: string; weight:
     .map(c => ({
       name: c.name,
       weight: Math.round(c.weight * 100) / 100, // IC sends like 40.000 → render as 40
-      pct: 0,    // populated when /grades/detail/{sid} lands
+      pct: 0,    // filled by enrichCategoriesWithDetail
       count: 0,  // ditto
     }));
+}
+
+/**
+ * Pick the most "current" detail entry from a /grades/detail response.
+ * Strategy: highest termSeq (latest term) wins; within ties, highest taskID
+ * wins (Semester Grade > Quarter Grade > Progress Grade). Only entries
+ * with non-empty categories[] are considered — IC sometimes returns
+ * historic snapshots without category data.
+ */
+export function pickCurrentDetailEntry(detail: RawGradeDetail): RawGradeDetailEntry | null {
+  if (!detail?.details?.length) return null;
+  const withCats = detail.details.filter(d => d.categories?.length > 0);
+  const candidates = withCats.length > 0 ? withCats : detail.details;
+  return candidates.slice().sort((a, b) => {
+    const sA = a.task?.termSeq ?? 0;
+    const sB = b.task?.termSeq ?? 0;
+    if (sB !== sA) return sB - sA;
+    return (b.task?.taskID ?? 0) - (a.task?.taskID ?? 0);
+  })[0] ?? null;
+}
+
+/**
+ * Enrich a base category list (from /grading/categories) with pct + count
+ * pulled from the matching grade-detail entry. Match by name (case-insensitive)
+ * — both endpoints emit the same canonical names. Falls back gracefully when
+ * detail is absent or doesn't include a particular category.
+ */
+export function enrichCategoriesWithDetail(
+  base: ReturnType<typeof mapCategories>,
+  detail: RawGradeDetail | undefined,
+): ReturnType<typeof mapCategories> {
+  if (!detail) return base;
+  const entry = pickCurrentDetailEntry(detail);
+  if (!entry) return base;
+
+  const byName: Record<string, typeof entry.categories[number]> = {};
+  for (const dc of entry.categories) {
+    byName[dc.name.toLowerCase()] = dc;
+  }
+
+  return base.map(b => {
+    const dc = byName[b.name.toLowerCase()];
+    if (!dc) return b;
+    const pct = dc.progress?.progressPercent;
+    const count = Array.isArray(dc.assignments) ? dc.assignments.length : 0;
+    return {
+      ...b,
+      pct: typeof pct === 'number' && Number.isFinite(pct)
+        ? Math.round(pct * 100) / 100
+        : b.pct,
+      count: count > 0 ? count : b.count,
+    };
+  });
+}
+
+/**
+ * Build a category list directly from /grades/detail when the separate
+ * /grading/categories call fails or wasn't made. Same shape as mapCategories
+ * but sourced from the detail entry's categories[].
+ */
+export function categoriesFromDetail(
+  detail: RawGradeDetail | undefined,
+): ReturnType<typeof mapCategories> {
+  if (!detail) return [];
+  const entry = pickCurrentDetailEntry(detail);
+  if (!entry) return [];
+  return entry.categories
+    .slice()
+    .sort((a, b) => {
+      if (b.weight !== a.weight) return b.weight - a.weight;
+      return a.name.localeCompare(b.name);
+    })
+    .map(dc => {
+      const pct = dc.progress?.progressPercent;
+      return {
+        name: dc.name,
+        weight: Math.round(dc.weight * 100) / 100,
+        pct: typeof pct === 'number' && Number.isFinite(pct)
+          ? Math.round(pct * 100) / 100
+          : 0,
+        count: Array.isArray(dc.assignments) ? dc.assignments.length : 0,
+      };
+    });
 }
 
 /**
@@ -368,9 +451,11 @@ export function mapGradesToSubjectDetails(
   raw: RawGradesResponse,
   recent?: RawRecentlyScored[],
   categoriesBySection?: Record<string, RawCategory[]>,
+  detailBySection?: Record<string, RawGradeDetail>,
 ): Record<string, SubjectDetail> {
   const recentBySid = recent ? groupRecentBySection(recent) : {};
   const catsBySid = categoriesBySection ?? {};
+  const detailBySid = detailBySection ?? {};
   const out: Record<string, SubjectDetail> = {};
   for (const enrollment of raw) {
     for (const course of enrollment.courses) {
@@ -378,8 +463,20 @@ export function mapGradesToSubjectDetails(
       const sid = String(course.sectionID);
       const recentForCourse = recentBySid[sid] ?? [];
       const cats = catsBySid[sid];
+      const detail = detailBySid[sid];
+
+      // Categories preference: enrich /categories with detail when both available.
+      // If only detail is available, build from detail. If only /categories, use as-is.
+      // If neither, empty.
+      let categories: ReturnType<typeof mapCategories> = [];
+      if (cats && cats.length > 0) {
+        categories = enrichCategoriesWithDetail(mapCategories(cats), detail);
+      } else if (detail) {
+        categories = categoriesFromDetail(detail);
+      }
+
       out[sid] = {
-        categories: cats ? mapCategories(cats) : [],
+        categories,
         history: buildHistoryForSection(recentForCourse),
         assignments: recentForCourse.map(recentlyScoredToAssignment),
       };

@@ -1,6 +1,6 @@
 import type {
   RawUserAccount, RawGradesResponse, RawRecentlyScored, RawRosterEntry,
-  RawGpaResponse, RawCategoriesResponse,
+  RawGpaResponse, RawCategoriesResponse, RawGradeDetail,
 } from './icTypes';
 
 /**
@@ -83,6 +83,28 @@ export class IcClient {
   getCategoriesForSection(sectionID: number | string): Promise<RawCategoriesResponse> {
     return this.getJson<RawCategoriesResponse>(
       `/campus/api/campus/grading/categories?sectionID=${encodeURIComponent(String(sectionID))}`,
+    );
+  }
+
+  /**
+   * Per-section grade detail — the richest endpoint in IC's portal API.
+   * Returns terms[] + details[] with per-task-term data including per-category
+   * aggregates and assignments-grouped-by-category. The selectedTermID and
+   * selectedTaskID parameters hint which task-term to focus on, but IC may
+   * return additional historic snapshots beyond just the requested one.
+   */
+  getGradeDetail(
+    sectionID: number | string,
+    termID?: number,
+    taskID?: number,
+  ): Promise<RawGradeDetail> {
+    const sid = encodeURIComponent(String(sectionID));
+    const params = new URLSearchParams();
+    if (termID != null) params.set('selectedTermID', String(termID));
+    if (taskID != null) params.set('selectedTaskID', String(taskID));
+    params.set('classroomSectionID', String(sectionID));
+    return this.getJson<RawGradeDetail>(
+      `/campus/resources/portal/grades/detail/${sid}?${params.toString()}`,
     );
   }
 }

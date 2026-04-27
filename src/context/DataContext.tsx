@@ -4,10 +4,11 @@ import type { UserProfile } from '../services/icTypes';
 import { IcClient } from '../services/icClient';
 import {
   mapUserAccount, mapGradesToClasses, mapGradesToSubjectDetails,
-  mapRecentlyScoredToAttention, computeGpa, mapIcGpa, type GpaSummary,
+  mapRecentlyScoredToAttention, computeGpa, mapIcGpa, pickActiveTermGrade,
+  type GpaSummary,
 } from '../services/icMapper';
 
-export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'categories' | 'gpa' | 'done';
+export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'categories' | 'detail' | 'gpa' | 'done';
 
 interface DataState {
   client: IcClient | null;
@@ -70,12 +71,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // for a delta-since-X optimization.
       const recentRaw = await client.getAssignmentListView();
       setState(s => ({ ...s, syncStep: 'categories' }));
-      // Fan-fetch categories for every section in parallel. The grades response
-      // gives us the section IDs; categories endpoint is per-section.
-      const sectionIds = gradesRaw
+      // Fan-fetch categories for every section in parallel. Active courses only.
+      const activeCourses = gradesRaw
         .flatMap(e => e.courses)
-        .filter(c => !c.dropped)
-        .map(c => c.sectionID);
+        .filter(c => !c.dropped);
+      const sectionIds = activeCourses.map(c => c.sectionID);
       const categoriesBySection: Record<string, Awaited<ReturnType<typeof client.getCategoriesForSection>>> = {};
       const catResults = await Promise.allSettled(
         sectionIds.map(sid => client.getCategoriesForSection(sid).then(cats => ({ sid, cats }))),
@@ -84,10 +84,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (r.status === 'fulfilled') {
           categoriesBySection[String(r.value.sid)] = r.value.cats;
         } else {
-          // Non-fatal per-section failure: just log and continue. The
-          // section's categories[] stays empty.
           // eslint-disable-next-line no-console
           console.log('[DataContext] categories fetch failed for one section:', r.reason);
+        }
+      }
+
+      setState(s => ({ ...s, syncStep: 'detail' }));
+      // Fan-fetch grade detail per section. Pick the active term-task (most
+      // recent grading task with a percent) so IC returns the most relevant
+      // detail snapshot. Used to populate per-category pct + count.
+      const detailBySection: Record<string, Awaited<ReturnType<typeof client.getGradeDetail>>> = {};
+      const detailResults = await Promise.allSettled(
+        activeCourses.map(course => {
+          const task = pickActiveTermGrade(course.gradingTasks);
+          return client
+            .getGradeDetail(course.sectionID, task?.termID, task?.taskID)
+            .then(detail => ({ sid: course.sectionID, detail }));
+        }),
+      );
+      for (const r of detailResults) {
+        if (r.status === 'fulfilled') {
+          detailBySection[String(r.value.sid)] = r.value.detail;
+        } else {
+          // eslint-disable-next-line no-console
+          console.log('[DataContext] grade detail fetch failed for one section:', r.reason);
         }
       }
 
@@ -104,7 +124,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       const user = mapUserAccount(userRaw, gradesRaw);
       const classes = mapGradesToClasses(gradesRaw, recentRaw);
-      const subjectDetails = mapGradesToSubjectDetails(gradesRaw, recentRaw, categoriesBySection);
+      const subjectDetails = mapGradesToSubjectDetails(
+        gradesRaw, recentRaw, categoriesBySection, detailBySection,
+      );
       const attention = mapRecentlyScoredToAttention(recentRaw);
       const computedGpa = computeGpa(classes);
       const gpa = gpaRaw ? mapIcGpa(gpaRaw, computedGpa) : computedGpa;

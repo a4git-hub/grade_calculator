@@ -256,6 +256,93 @@ export interface RawCategory {
 
 export type RawCategoriesResponse = RawCategory[];
 
+// ---------------------------------------------------------------------------
+// Per-section grade detail — /campus/resources/portal/grades/detail/{sid}
+// ---------------------------------------------------------------------------
+// This is the richest endpoint in IC's portal API. It returns:
+//   - terms[]: all 4 academic terms with their date ranges
+//   - details[]: per task-term snapshot with task metadata, per-category
+//     aggregates (the `progress` object — server-computed pct + points),
+//     and the assignments grouped under each category.
+// The grouping under categories is what gives us assignment→category linkage
+// that listView doesn't expose — `categories[].groupID` matches `categoryID`
+// from the /grading/categories endpoint, and `categories[].assignments[]` are
+// the individual scored items in that bucket.
+
+export interface RawGradeDetailTerm {
+  calendarID: number;
+  termID: number;
+  termName: string;
+  termScheduleID: number;
+  termScheduleName: string;
+  termSeq: number;
+  isPrimary: boolean;
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Per-category aggregate from /grades/detail. groupID matches the
+ * categoryID exposed by /grading/categories (same canonical IDs).
+ */
+export interface RawGradeDetailProgress {
+  progressID: number;
+  scoreID: number;
+  groupID: number;
+  progressScore: string;
+  progressPercent: number;
+  progressTrendVal: number | null;
+  progressPointsEarned: number;
+  progressTotalPoints: number;
+  termID: number;
+  taskID: number;
+}
+
+export interface RawGradeDetailCategory {
+  /** Same as RawCategory.categoryID — the canonical category bucket ID. */
+  groupID: number;
+  name: string;
+  weight: number;
+  seq: number;
+  isExcluded: boolean;
+  isWeighted: boolean;
+  usePercent: boolean;
+  /** Assignments scored in this category. Same row shape as listView. */
+  assignments: RawRecentlyScored[];
+  /**
+   * Server-computed aggregate: the student's percent score IN THIS CATEGORY,
+   * total points earned/possible, etc. Populated only when scored. This is
+   * the data that fills the SubjectDetail Categories pct/count slots.
+   */
+  progress?: RawGradeDetailProgress;
+}
+
+/**
+ * Top-level entry in /grades/detail[].details. Each entry is one task-term
+ * combination (e.g. "Semester Grade T2", "Progress Grade T3"). The task
+ * metadata extends RawGradingTask with score/percent/comments fields that
+ * the basic /grades response doesn't include.
+ */
+export interface RawGradeDetailEntry {
+  task: RawGradingTask & {
+    /** Letter grade for this term-task (e.g. "B"). */
+    score?: string;
+    /** Numeric grade for this term-task (e.g. 84.62). */
+    percent?: number;
+    /** Teacher's free-text comments. None of the other endpoints expose this. */
+    comments?: string | null;
+    includedInTermGPA?: boolean;
+  };
+  categories: RawGradeDetailCategory[];
+  /** Sub-tasks (composite grading tasks). Null in most cases. */
+  children: unknown[] | null;
+}
+
+export interface RawGradeDetail {
+  terms: RawGradeDetailTerm[];
+  details: RawGradeDetailEntry[];
+}
+
 /**
  * IC's official GPA record. The endpoint returns an array because IC supports
  * multiple GPA flavors (Cumulative, term-specific, with/without bonus).
