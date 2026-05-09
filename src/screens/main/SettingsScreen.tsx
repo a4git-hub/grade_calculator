@@ -121,13 +121,9 @@ export function SettingsScreen() {
               T={T} icon="Lock" title="District"
               sub={district?.name ?? 'Not selected'}
               right={<LIcon.Chevron size={14} color={T.text3} />}
-              // Opens ChangeDistrict as a modal over Settings. The user can
-              // cancel without affecting their session, OR pick a new district
-              // which signs them out + routes to SignInWebView for the new one.
               onPress={openChangeDistrict}
+              last
             />
-            <SettingsRow T={T} icon="Doc" title="Class syllabi" sub="3 of 6 uploaded"
-                         right={<LIcon.Chevron size={14} color={T.text3} />} last />
           </SettingsGroup>
 
           {/* About */}

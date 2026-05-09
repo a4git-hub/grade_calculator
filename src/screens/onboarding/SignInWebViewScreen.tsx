@@ -25,7 +25,7 @@ export function SignInWebViewScreen({ navigation }: Props) {
   const districtName = district?.name ?? '';
   const portalUrl = district?.portalUrl ?? '';
   const webRef = useRef<WebView>(null);
-  const { setClient } = useData();
+  const { setClient, mockLogin } = useData();
   const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
 
   // RootNavigator's key-based remount destroys nav history when district
@@ -136,6 +136,12 @@ export function SignInWebViewScreen({ navigation }: Props) {
           />
         </View>
 
+        <TouchableOpacity activeOpacity={0.8} onPress={mockLogin} style={styles.demoBtn}>
+          <Text style={[styles.demoBtnText, { color: T.accent }]}>
+            App reviewer? Click here for demo mode.
+          </Text>
+        </TouchableOpacity>
+        
         <Text style={[styles.note, { color: T.text3 }]}>
           Lumina never sees your password. Credentials stay inside your district&rsquo;s portal.
         </Text>
@@ -173,5 +179,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, borderWidth: 1, overflow: 'hidden',
   },
   loading:    { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
+  demoBtn:    { paddingVertical: 8, paddingHorizontal: 24, alignItems: 'center', marginBottom: 2 },
+  demoBtnText:{ fontSize: 13, fontWeight: '600' },
   note:       { fontSize: 11, textAlign: 'center', paddingHorizontal: 24, paddingBottom: 16 },
 });

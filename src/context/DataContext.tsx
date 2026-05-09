@@ -10,6 +10,7 @@ import {
 import {
   loadDistrict, saveDistrict, type PersistedDistrict,
 } from '../lib/persistDistrict';
+import { MockUser, MockClasses, MockPreCalc, MockAttention, MockGPA } from '../data/mock';
 
 export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'categories' | 'detail' | 'gpa' | 'done';
 
@@ -47,6 +48,8 @@ interface DataContextValue extends DataState {
   setDistrict: (d: PersistedDistrict) => Promise<void>;
   /** Called by FirstSyncScreen when first-time sync completes. */
   enterApp: () => void;
+  /** Immediately bypasses login and sets mock data (For App Store Review). */
+  mockLogin: () => void;
 }
 
 const initialState: DataState = {
@@ -222,6 +225,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setState(s => ({ ...s, inApp: true }));
   }, []);
 
+  const mockLogin = useCallback(() => {
+    setState(s => ({
+      ...s,
+      user: MockUser,
+      classes: MockClasses,
+      subjectDetails: { pre: MockPreCalc },
+      attention: MockAttention,
+      gpa: MockGPA,
+      syncedAt: Date.now(),
+      syncStep: 'done',
+      syncError: null,
+      inApp: true,
+      client: {} as any // fake client to avoid null checks
+    }));
+  }, []);
+
   // Hydrate persisted district once on mount.
   useEffect(() => {
     let cancelled = false;
@@ -240,6 +259,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       signOut,
       setDistrict,
       enterApp,
+      mockLogin,
     }}>
       {children}
     </DataContext.Provider>
