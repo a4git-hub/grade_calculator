@@ -7,6 +7,7 @@ import { OnboardingNavigator } from './OnboardingNavigator';
 import { MainNavigator } from './MainNavigator';
 import { DistrictScreen } from '../screens/onboarding/DistrictScreen';
 import { PrivacyScreen } from '../screens/main/PrivacyScreen';
+import { WebSyncScreen } from '../screens/main/WebSyncScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 
@@ -62,6 +63,11 @@ export function RootNavigator() {
             <Stack.Screen
               name="Privacy"
               component={PrivacyScreen}
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="WebSync"
+              component={WebSyncScreen}
               options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
             />
           </Stack.Group>

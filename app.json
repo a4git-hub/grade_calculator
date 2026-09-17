@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lumina",
     "slug": "lumina",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -11,8 +11,10 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.lumina.grades",
+      "buildNumber": "2",
       "infoPlist": {
-        "NSCameraUsageDescription": "Used for uploading syllabus photos."
+        "NSCameraUsageDescription": "Used for uploading syllabus photos.",
+        "UIBackgroundModes": ["fetch"]
       }
     },
     "android": {

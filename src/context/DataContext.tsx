@@ -10,6 +10,7 @@ import {
 import {
   loadDistrict, saveDistrict, type PersistedDistrict,
 } from '../lib/persistDistrict';
+import { captureIcClient } from '../hooks/useIcAuth';
 import { MockUser, MockClasses, MockPreCalc, MockAttention, MockGPA } from '../data/mock';
 
 export type SyncStep = 'idle' | 'user' | 'grades' | 'attention' | 'categories' | 'detail' | 'gpa' | 'done';
@@ -183,8 +184,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       
       const attention = mapRecentlyScoredToAttention(recentRaw, activeTermMap);
-      const computedGpa = computeGpa(classes);
-      const gpa = gpaRaw ? mapIcGpa(gpaRaw, computedGpa) : computedGpa;
+      
+      // Use the dynamically computed GPA from active classes so that the 
+      // dashboard correctly resets for the new school year. 
+      // We ignore IC's cumulative GPA because it statically reflects past years.
+      const gpa = computeGpa(classes);
 
       setState(s => ({
         ...s,
@@ -243,12 +247,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // Hydrate persisted district once on mount.
   useEffect(() => {
-    let cancelled = false;
-    loadDistrict().then(d => {
-      if (cancelled) return;
-      setState(s => ({ ...s, district: d, hydrated: true }));
+    // Attempt hydration on mount
+    loadDistrict().then(async d => {
+      let client = null;
+      if (d) {
+        try {
+          const origin = new URL(d.portalUrl).origin;
+          client = await captureIcClient(origin);
+        } catch (e) {
+          // JSESSIONID missing or expired, silent auth will be needed
+        }
+      }
+      setState(s => ({ ...s, district: d, client, hydrated: true }));
     });
-    return () => { cancelled = true; };
   }, []);
 
   return (

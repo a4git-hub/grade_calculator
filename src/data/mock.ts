@@ -2,13 +2,17 @@ import { ClassItem, AttentionGroup, SubjectDetail } from '../types';
 
 export const MockUser = {
   name: 'Aditya',
+  firstName: 'Aditya',
+  lastName: 'Krishnan',
+  username: 'aditya',
+  personID: 1,
   school: 'Westview High',
-  gradeLevel: 10,
+  gradeLevel: '10',
   initials: 'AK',
   fullName: 'Aditya Krishnan',
 };
 
-export const MockGPA = { uw: 3.33, w: 3.83 };
+export const MockGPA = { uw: 3.33, w: 3.83, trend: 0.1 };
 
 export const MockClasses: ClassItem[] = [
   {

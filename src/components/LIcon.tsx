@@ -193,4 +193,11 @@ export const LIcon = {
       <Circle cx="12" cy="12" r="2.2" fill={color}/>
     </Svg>
   ),
+
+  Laptop: ({ size = 20, color = 'currentColor', stroke = 1.6 }: IconProps) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke={color} strokeWidth={stroke} strokeLinecap={lc} strokeLinejoin={lj} />
+      <Path d="M2 21h20M12 17v4" stroke={color} strokeWidth={stroke} strokeLinecap={lc} strokeLinejoin={lj} />
+    </Svg>
+  ),
 };

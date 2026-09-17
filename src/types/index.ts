@@ -73,6 +73,11 @@ export type RootStackParamList = {
    * "Privacy & data" row in Settings.
    */
   Privacy: undefined;
+  /**
+   * Web Sync scanner presented as a modal over Main. Reachable from the
+   * "Lumina Web Sync" row in Settings.
+   */
+  WebSync: undefined;
 };
 
 export type OnboardingStackParamList = {

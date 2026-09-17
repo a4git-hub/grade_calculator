@@ -183,7 +183,7 @@ export function DistrictScreen() {
           </Text>
 
           {/* Search */}
-          <View style={[styles.searchBox, { backgroundColor: T.surface, borderColor: T.hairline }]}>
+          <View style={[styles.searchBox, { backgroundColor: T.surface2 }]}>
             <LIcon.Search size={18} color={T.text3} />
             <TextInput
               value={query}
@@ -227,8 +227,8 @@ export function DistrictScreen() {
             showsVerticalScrollIndicator={false}
           >
             {showEmpty && (
-              <View style={[styles.emptyState, { borderColor: T.hairline }]}>
-                <Text style={[styles.emptyTitle, { color: T.text2 }]}>No districts found</Text>
+              <View style={[styles.emptyState, { backgroundColor: T.surface2 }]}>
+                <Text style={[styles.emptyTitle, { color: T.text }]}>No districts found</Text>
                 <Text style={[styles.emptySub, { color: T.text3 }]}>
                   Try a different spelling or part of your school's city name.
                 </Text>
@@ -244,16 +244,15 @@ export function DistrictScreen() {
                   style={[
                     styles.districtRow,
                     {
-                      backgroundColor: isSelected ? T.accentSoft : T.surface,
-                      borderColor: isSelected ? T.accent + '55' : T.hairline,
+                      backgroundColor: isSelected ? T.surface2 : 'transparent',
                     },
                   ]}
                 >
                   <View style={[
                     styles.initials,
-                    { backgroundColor: isSelected ? T.accent + '22' : T.surface3 },
+                    { backgroundColor: isSelected ? T.accent + '22' : T.surface2 },
                   ]}>
-                    <Text style={[styles.initialsText, { color: isSelected ? T.accent : T.text2 }]}>
+                    <Text style={[styles.initialsText, { color: isSelected ? T.accent : T.text }]}>
                       {initialsForDistrict(d.district_name)}
                     </Text>
                   </View>
@@ -278,7 +277,7 @@ export function DistrictScreen() {
           </ScrollView>
 
           {/* Security note */}
-          <View style={[styles.secNote, { backgroundColor: T.surface, borderColor: T.hairline }]}>
+          <View style={[styles.secNote, { backgroundColor: T.surface2 }]}>
             <LIcon.Lock size={18} color={T.text2} />
             <Text style={[styles.secText, { color: T.text2 }]}>
               Sign-in opens in your district's secure portal. Credentials stay on your device.
@@ -351,10 +350,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    height: 48,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 1,
+    height: 52,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     marginBottom: 8,
   },
   searchInput: {
@@ -375,8 +373,6 @@ const styles = StyleSheet.create({
     padding: 18,
     paddingVertical: 24,
     borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
     alignItems: 'center',
     marginTop: 8,
   },
@@ -396,8 +392,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   initials: {
     width: 36,
@@ -435,7 +430,6 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingHorizontal: 14,
     borderRadius: 12,
-    borderWidth: 1,
     marginTop: 18,
     marginBottom: 14,
   },

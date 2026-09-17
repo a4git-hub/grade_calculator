@@ -27,14 +27,14 @@ export interface ThemeTokens {
 export const LuminaTokens: { dark: ThemeTokens; light: ThemeTokens } = {
   dark: {
     bg:         '#070C14',
-    surface:    '#0E1620',
-    surface2:   '#16202C',
-    surface3:   '#1E2A38',
+    surface:    '#0B111A',
+    surface2:   '#111824',
+    surface3:   '#182232',
     hairline:   'rgba(255,255,255,0.06)',
     hairline2:  'rgba(255,255,255,0.10)',
-    text:       '#F2F5F9',
-    text2:      '#A6B2C2',
-    text3:      '#6F7E92',
+    text:       '#FFFFFF',
+    text2:      '#C0CADA',
+    text3:      '#8D9CAE',
     accent:     '#5BC8C2',
     accent2:    '#2E8C9A',
     ink:        '#3E7BFA',
@@ -81,7 +81,7 @@ export const Fonts = {
 // Mono kicker text — shared style factory
 export const monoStyle = (T: ThemeTokens) => ({
   fontFamily: Fonts.mono,
-  fontSize: 10,
+  fontSize: 11,
   letterSpacing: 0.6,
   textTransform: 'uppercase' as const,
   color: T.text3,

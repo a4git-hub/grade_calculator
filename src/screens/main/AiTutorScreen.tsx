@@ -95,7 +95,7 @@ export function AiTutorScreen() {
   const strongestCategory = [...validCategories].sort((a, b) => b.pct - a.pct)[0] || { name: 'Assignments' };
 
   const worstAssignments = [...assignments]
-    .filter(a => (a.pos === 'bad' || a.pos === 'warn') && a.score !== '—')
+    .filter(a => (a.pos === 'bad' || a.pos === 'warn') && a.score !== '-')
     .sort((a, b) => parseFloat(a.pct || '100') - parseFloat(b.pct || '100'))
     .slice(0, 3);
 
@@ -117,7 +117,7 @@ export function AiTutorScreen() {
   } else {
     quickWins = [
       `• Check with your teacher about retaking your lowest score: ${worstAssignments[0]?.name || 'recent assignment'}.`,
-      `• Focus heavily on ${weakestCategory.name} — raising this average yields the highest mathematical return.`,
+      `• Focus heavily on ${weakestCategory.name} - raising this average yields the highest mathematical return.`,
       `• Prioritize studying for upcoming ${displayCategories[0]?.name || 'Assignments'} over minor daily work.`
     ];
   }
@@ -226,7 +226,7 @@ export function AiTutorScreen() {
                           <Text style={{ color: T.text3, fontSize: 13 }}>Controls {cat.weight}% of your final grade</Text>
                         </View>
                         <Text style={{ color: T.accent, fontSize: 18, fontWeight: '600' }}>
-                          {cat.pct > 0 ? `${cat.pct.toFixed(1)}%` : '—%'}
+                          {cat.pct > 0 ? `${cat.pct.toFixed(1)}%` : '-%'}
                         </Text>
                       </View>
                       {index < 2 && <View style={{ height: 1, backgroundColor: T.hairline, marginBottom: 16 }} />}
@@ -292,7 +292,7 @@ export function AiTutorScreen() {
                           <Text style={{ color: T.text3, fontSize: 13 }}>{cat.count} assignments scored</Text>
                         </View>
                         <Text style={{ color: cat.count === 0 ? T.text3 : cat.pct >= 90 ? '#10B981' : cat.pct >= 80 ? '#F59E0B' : '#EF4444', fontSize: 18, fontWeight: '600' }}>
-                          {cat.count === 0 ? '—%' : `${cat.pct.toFixed(1)}%`}
+                          {cat.count === 0 ? '-%' : `${cat.pct.toFixed(1)}%`}
                         </Text>
                       </View>
                       {index < displayCategories.length - 1 && <View style={{ height: 1, backgroundColor: T.hairline, marginBottom: 16 }} />}
@@ -316,7 +316,7 @@ export function AiTutorScreen() {
                       <View style={{ flexDirection: 'row', marginBottom: i < worstAssignments.length - 1 ? 16 : 0 }}>
                         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: a.pos === 'bad' ? '#EF4444' : '#F59E0B', marginTop: 7, marginRight: 12 }} />
                         <Text style={{ color: T.text2, fontSize: 15, lineHeight: 22, flex: 1 }}>
-                          {a.name} ({a.cat}) is pulling you down — you scored {a.score} {a.pct && a.pct !== '—' ? `(${a.pct})` : ''}.
+                          {a.name} ({a.cat}) is pulling you down - you scored {a.score} {a.pct && a.pct !== '-' ? `(${a.pct})` : ''}.
                         </Text>
                       </View>
                       {i < worstAssignments.length - 1 && <View style={{ height: 1, backgroundColor: T.hairline, marginBottom: 16, marginLeft: 18 }} />}

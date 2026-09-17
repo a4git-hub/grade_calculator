@@ -139,15 +139,21 @@ export function computeGpa(classes: ClassItem[]): GpaSummary {
 
   let uwSum = 0;
   let wSum = 0;
+  let count = 0;
   for (const c of academic) {
+    if (c.letter === 'N/A' || !c.letter) continue;
     const points = letterToGpaPoints(c.letter);
     uwSum += points;
     wSum += isHonorsCourse(c.name) ? points + 1.0 : points;
+    count++;
   }
+  
+  if (count === 0) return { uw: 0, w: 0, trend: 0 };
+
   const round2 = (n: number) => Math.round(n * 100) / 100;
   return {
-    uw: round2(uwSum / academic.length),
-    w: round2(wSum / academic.length),
+    uw: round2(uwSum / count),
+    w: round2(wSum / count),
     trend: 0, // populated once history endpoint is wired
   };
 }
@@ -268,7 +274,13 @@ export function mapGradesToClasses(
 ): ClassItem[] {
   const flagCounts = recent ? flagsBySection(recent) : {};
   const classes: ClassItem[] = [];
+  
+  // Sort enrollments to find the most recent school year
+  const sortedRaw = [...raw].sort((a, b) => new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime());
+  const activeCalendarID = sortedRaw[0]?.calendarID;
+
   for (const enrollment of raw) {
+    if (enrollment.calendarID !== activeCalendarID) continue;
     for (const course of enrollment.courses) {
       if (course.dropped) continue;
       const task = pickActiveTermGrade(course.gradingTasks);
@@ -486,7 +498,12 @@ export function mapGradesToSubjectDetails(
   const catsBySid = categoriesBySection ?? {};
   const detailBySid = detailBySection ?? {};
   const out: Record<string, SubjectDetail> = {};
+  
+  const sortedRaw = [...raw].sort((a, b) => new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime());
+  const activeCalendarID = sortedRaw[0]?.calendarID;
+
   for (const enrollment of raw) {
+    if (enrollment.calendarID !== activeCalendarID) continue;
     for (const course of enrollment.courses) {
       if (course.dropped) continue;
       const sid = String(course.sectionID);
@@ -549,10 +566,10 @@ export function mapRecentlyScoredToAttention(
   const flagged: AttentionItem[] = [];
   const lowScore: AttentionItem[] = [];
 
-  // Use a sensible cutoff (150 days ago) to filter out last semester's missing work
-  // instead of relying on IC's incomplete termIDs array.
+  // Use a 30-day cutoff so that last year's missing work disappears
+  // when the new school year starts.
   const d = new Date();
-  d.setDate(d.getDate() - 150);
+  d.setDate(d.getDate() - 30);
   const cutoff = d.toISOString();
 
   for (const item of raw) {

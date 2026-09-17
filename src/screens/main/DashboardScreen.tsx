@@ -39,7 +39,7 @@ export function DashboardScreen({ navigation }: Props) {
   const { subjectDetails, syncedAt } = useData();
   const today = formatToday();
   const summary = buildSummary(classes);
-  const daysLeft = Math.max(0, Math.ceil((new Date('2026-06-05').getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+  const daysLeft = Math.max(0, Math.ceil((new Date('2027-06-05').getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>

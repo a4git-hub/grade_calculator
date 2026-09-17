@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -24,6 +24,7 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
   const [droppedAssignments, setDroppedAssignments] = useState<Record<string, boolean>>({});
   const [customAssignments, setCustomAssignments] = useState<Record<string, {name: string, score: string, total: string}[]>>({});
   const [editedAssignments, setEditedAssignments] = useState<Record<string, {score: string, total: string}>>({});
+  const [editingAssignment, setEditingAssignment] = useState<{ id: string, name: string, score: string, total: string, isCustom?: boolean, catName?: string, customIdx?: number } | null>(null);
   
   // Final calc state
   const [finalCat, setFinalCat] = useState<string>('');
@@ -46,50 +47,121 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
 
   let totalEarnedWeight = 0;
   let totalPossibleWeight = 0;
+  let totalEarnedPoints = 0;
+  let totalPossiblePoints = 0;
 
   const recalculatedCategories = detail.categories.map(cat => {
     let catEarned = 0;
     let catPossible = 0;
     const catAssignments = detail.assignments.filter(a => a.cat === cat.name);
-    let hasScores = false;
-
-    // Add original assignments
+    
+    let categoryIsActive = cat.pct > 0;
+    let rawOrigEarned = 0;
+    let rawOrigPossible = 0;
+    
+    // Check if THIS category has any manual edits, and pre-calculate original totals
+    let categoryHasEdits = false;
+    const customForCat = customAssignments[cat.name] || [];
+    if (customForCat.length > 0) categoryHasEdits = true;
+    
     catAssignments.forEach((a, j) => {
        const id = `${cat.name}-${a.name}-${j}`;
-       if (droppedAssignments[id]) return;
+       if (droppedAssignments[id] || editedAssignments[id]) {
+           categoryHasEdits = true;
+       }
        
-       hasScores = true;
-       if (editedAssignments[id]) {
-          catEarned += parseFloat(editedAssignments[id].score) || 0;
-          catPossible += parseFloat(editedAssignments[id].total) || 0;
-       } else if (a.earned !== undefined && a.possible !== undefined) {
-          catEarned += a.earned;
-          catPossible += a.possible;
-       } else if (a.pct !== '—') {
-          catEarned += parseFloat(a.pct) || 0;
-          catPossible += 100;
+       if (a.earned !== undefined && a.possible !== undefined) {
+          rawOrigEarned += a.earned;
+          rawOrigPossible += a.possible;
+       } else if (a.pct !== '-' && a.pct !== undefined) {
+          rawOrigEarned += parseFloat(a.pct) || 0;
+          rawOrigPossible += 100;
        }
     });
 
-    // Add custom assignments
-    const customForCat = customAssignments[cat.name] || [];
-    customForCat.forEach(ca => {
-       hasScores = true;
-       catEarned += parseFloat(ca.score) || 0;
-       catPossible += parseFloat(ca.total) || 0;
-    });
+    if (rawOrigPossible > 0) categoryIsActive = true;
 
-    const newPct = hasScores ? (catPossible > 0 ? (catEarned / catPossible) * 100 : 0) : cat.pct;
+    let newPct = cat.pct;
+    let finalEarnedPoints = rawOrigEarned;
+    let finalPossiblePoints = rawOrigPossible;
 
-    if (hasScores || cat.pct > 0) {
+    if (categoryHasEdits) {
+       let rawEditedEarned = 0;
+       let rawEditedPossible = 0;
+       let hasActiveEditedScores = false;
+
+       // Add original assignments
+       catAssignments.forEach((a, j) => {
+          const id = `${cat.name}-${a.name}-${j}`;
+          
+          let origEarned = 0;
+          let origPoss = 0;
+          
+          if (a.earned !== undefined && a.possible !== undefined) {
+             origEarned = a.earned;
+             origPoss = a.possible;
+          } else if (a.pct !== '-' && a.pct !== undefined) {
+             origEarned = parseFloat(a.pct) || 0;
+             origPoss = 100; // approximation for percentage-only grades
+          }
+          
+          if (droppedAssignments[id]) {
+             // Contributes 0 to edited totals
+          } else if (editedAssignments[id]) {
+             hasActiveEditedScores = true;
+             rawEditedEarned += parseFloat(editedAssignments[id].score) || 0;
+             rawEditedPossible += parseFloat(editedAssignments[id].total) || 0;
+          } else if (origPoss > 0 || origEarned > 0) {
+             hasActiveEditedScores = true;
+             rawEditedEarned += origEarned;
+             rawEditedPossible += origPoss;
+          }
+       });
+
+       // Add custom assignments
+       customForCat.forEach(ca => {
+          hasActiveEditedScores = true;
+          rawEditedEarned += parseFloat(ca.score) || 0;
+          rawEditedPossible += parseFloat(ca.total) || 0;
+       });
+
+       if (!hasActiveEditedScores) {
+          categoryIsActive = false;
+          newPct = 0;
+       } else {
+          categoryIsActive = true;
+          const rawOrigPct = rawOrigPossible > 0 ? (rawOrigEarned / rawOrigPossible) * 100 : 0;
+          const rawEditPct = rawEditedPossible > 0 ? (rawEditedEarned / rawEditedPossible) * 100 : 0;
+          const deltaPct = rawEditPct - rawOrigPct;
+
+          // If there were no original scores, just use the raw edited percentage. Otherwise, apply the delta.
+          newPct = rawOrigPossible > 0 ? Math.max(0, cat.pct + deltaPct) : rawEditPct;
+          finalEarnedPoints = rawEditedEarned;
+          finalPossiblePoints = rawEditedPossible;
+       }
+    }
+
+    if (categoryIsActive || finalPossiblePoints > 0) {
       totalEarnedWeight += (newPct / 100) * cat.weight;
       totalPossibleWeight += cat.weight;
+      totalEarnedPoints += finalEarnedPoints;
+      totalPossiblePoints += finalPossiblePoints;
     }
 
     return { ...cat, newPct };
   });
 
-  const overallRecalculatedPct = totalPossibleWeight > 0 ? (totalEarnedWeight / totalPossibleWeight) * 100 : (subject?.pct ?? 0);
+  const useWeights = detail.categories.some(c => c.weight > 0);
+  let overallRecalculatedPct = subject?.pct ?? 0;
+  if (useWeights) {
+    if (totalPossibleWeight > 0) {
+      overallRecalculatedPct = (totalEarnedWeight / totalPossibleWeight) * 100;
+    }
+  } else {
+    if (totalPossiblePoints > 0) {
+      overallRecalculatedPct = (totalEarnedPoints / totalPossiblePoints) * 100;
+    }
+  }
   
   // Calculate recalculated letter grade
   const letterForPct = (pct: number): string => {
@@ -107,6 +179,25 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
   };
   
   const overallLetter = isEdited ? letterForPct(overallRecalculatedPct) : (subject?.letter ?? '');
+
+  let calculatedTrend = subject?.trend ?? 0;
+  if (detail?.history && detail.history.length > 0) {
+    const history = detail.history;
+    const sevenDaysAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
+    let referenceValue = history[0].v;
+    let minDiff = Infinity;
+    for (const h of history) {
+      const t = new Date(h.d).getTime();
+      const diff = Math.abs(t - sevenDaysAgo);
+      if (diff < minDiff) {
+        minDiff = diff;
+        referenceValue = h.v;
+      }
+    }
+    calculatedTrend = (subject?.pct ?? 0) - referenceValue;
+  }
+  const trendUp = calculatedTrend > 0;
+  const trendFlat = calculatedTrend === 0 || Math.abs(calculatedTrend) < 0.01;
 
   if (!subject) {
     return (
@@ -169,9 +260,17 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                    <Text style={[styles.trendText, { color: T.accent }]}>Reset Grade</Text>
                  </TouchableOpacity>
                ) : (
-                 <View style={[styles.trendBadge, { backgroundColor: T.badSoft }]}>
-                   <LIcon.TrendDown size={11} color={T.bad} stroke={2.4} />
-                   <Text style={[styles.trendText, { color: T.bad }]}>{subject.trend}% · 7d</Text>
+                 <View style={[styles.trendBadge, { backgroundColor: trendUp ? T.goodSoft : trendFlat ? T.surface3 : T.badSoft }]}>
+                   {trendUp ? (
+                     <LIcon.Trend size={11} color={T.good} stroke={2.4} />
+                   ) : trendFlat ? (
+                     <View style={{ width: 8, height: 2, backgroundColor: T.text3 }} />
+                   ) : (
+                     <LIcon.TrendDown size={11} color={T.bad} stroke={2.4} />
+                   )}
+                   <Text style={[styles.trendText, { color: trendUp ? T.good : trendFlat ? T.text3 : T.bad }]}>
+                     {trendFlat ? '0.0%' : `${trendUp ? '+' : ''}${calculatedTrend.toFixed(1)}%`} · 7d
+                   </Text>
                  </View>
                )}
               <Text style={[styles.syncNote, { color: T.text3 }]}>{isEdited ? 'What-If Mode' : `Last sync · ${timeAgo(syncedAt)}`}</Text>
@@ -246,7 +345,7 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                   </View>
                   <View style={styles.catScore}>
                     <Text style={[styles.catPct, { color: hasScore ? (isEdited ? T.accent : T.text) : T.text3 }]}>
-                      {hasScore ? `${catPctVal.toFixed(2)}%` : '—'}
+                      {hasScore ? `${catPctVal.toFixed(2)}%` : '-'}
                     </Text>
                     {cat.count > 0 && (
                       <Text style={[styles.catCount, { color: T.text3 }]}>{cat.count} items</Text>
@@ -262,7 +361,7 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                       const edited = editedAssignments[id];
                       const currentEarned = edited ? edited.score : (a.earned?.toString() ?? '');
                       const currentTotal = edited ? edited.total : (a.possible?.toString() ?? '');
-                      const displayPct = edited ? (((parseFloat(currentEarned)/parseFloat(currentTotal))*100) || 0).toFixed(1) + '%' : a.pct;
+                      const displayPct = edited ? (((parseFloat(currentEarned)/parseFloat(currentTotal))*100) || 0).toFixed(1) + '%' : (a.pct === '-' ? '-' : a.pct);
                       const ac = a.pos === 'good' ? T.good : a.pos === 'warn' ? T.warn : T.bad;
 
                       return (
@@ -277,38 +376,32 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                                <LIcon.X size={16} color={T.text3} stroke={2.4} />
                             )}
                           </TouchableOpacity>
-                          <View style={styles.assignInfo}>
+                          <TouchableOpacity 
+                            style={styles.assignInfo}
+                            onPress={() => {
+                              if (!isDropped) {
+                                setEditingAssignment({ id, name: a.name, score: currentEarned || '0', total: currentTotal || '100' });
+                              }
+                            }}
+                          >
                             <Text style={[styles.assignName, { color: isDropped ? T.text3 : T.text, textDecorationLine: isDropped ? 'line-through' : 'none' }]} numberOfLines={2}>{a.name}</Text>
-                          </View>
+                          </TouchableOpacity>
                           
-                          <View style={{ alignItems: 'flex-end' }}>
-                            {a.possible !== undefined ? (
-                              <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 2}}>
-                                <TextInput 
-                                  style={[styles.assignScore, { color: isDropped ? T.text3 : (edited ? T.accent : T.text2), padding: 0 }]}
-                                  value={currentEarned}
-                                  editable={!isDropped}
-                                  keyboardType="numeric"
-                                  onChangeText={(t) => {
-                                     setEditedAssignments(prev => ({...prev, [id]: { score: t, total: currentTotal }}));
-                                  }}
-                                />
-                                <Text style={[styles.assignScore, { color: T.text3 }]}> / </Text>
-                                <TextInput 
-                                  style={[styles.assignScore, { color: isDropped ? T.text3 : (edited ? T.accent : T.text2), padding: 0 }]}
-                                  value={currentTotal}
-                                  editable={!isDropped}
-                                  keyboardType="numeric"
-                                  onChangeText={(t) => {
-                                     setEditedAssignments(prev => ({...prev, [id]: { score: currentEarned, total: t }}));
-                                  }}
-                                />
-                              </View>
-                            ) : (
-                              <Text style={[styles.assignScore, { color: T.text3, marginBottom: 2 }]}>{a.score}</Text>
-                            )}
+                          <TouchableOpacity 
+                            style={{ alignItems: 'flex-end', paddingVertical: 4, paddingLeft: 8 }}
+                            onPress={() => {
+                              if (!isDropped) {
+                                setEditingAssignment({ id, name: a.name, score: currentEarned || '0', total: currentTotal || '100' });
+                              }
+                            }}
+                          >
+                            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 2}}>
+                              <Text style={[styles.assignScore, { color: isDropped ? T.text3 : (edited ? T.accent : T.text2) }]}>{currentEarned || '-'}</Text>
+                              <Text style={[styles.assignSep, { color: isDropped ? T.text3 : T.text3 }]}>/</Text>
+                              <Text style={[styles.assignScore, { color: isDropped ? T.text3 : (edited ? T.accent : T.text2) }]}>{currentTotal || '-'}</Text>
+                            </View>
                             <Text style={[styles.assignPct, { color: isDropped ? T.text3 : (edited ? T.accent : ac) }]}>{isDropped ? 'Dropped' : displayPct}</Text>
-                          </View>
+                          </TouchableOpacity>
                         </View>
                       );
                     })}
@@ -334,32 +427,17 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                             }}
                           />
                         </View>
-                        <View style={{ alignItems: 'flex-end' }}>
+                        <TouchableOpacity 
+                          style={{ alignItems: 'flex-end', paddingVertical: 4, paddingLeft: 8 }}
+                          onPress={() => setEditingAssignment({ id: `custom-${j}`, name: ca.name, score: ca.score, total: ca.total, isCustom: true, catName: cat.name, customIdx: j })}
+                        >
                           <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 2}}>
-                            <TextInput 
-                               style={[styles.assignScore, { color: T.text, padding: 0 }]}
-                               value={ca.score}
-                               keyboardType="numeric"
-                               onChangeText={(t) => {
-                                 const newArr = [...customForCat];
-                                 newArr[j].score = t;
-                                 setCustomAssignments(prev => ({...prev, [cat.name]: newArr}));
-                               }}
-                            />
-                            <Text style={[styles.assignScore, { color: T.text3 }]}> / </Text>
-                            <TextInput 
-                               style={[styles.assignScore, { color: T.text, padding: 0 }]}
-                               value={ca.total}
-                               keyboardType="numeric"
-                               onChangeText={(t) => {
-                                 const newArr = [...customForCat];
-                                 newArr[j].total = t;
-                                 setCustomAssignments(prev => ({...prev, [cat.name]: newArr}));
-                               }}
-                            />
+                            <Text style={[styles.assignScore, { color: T.text }]}>{ca.score}</Text>
+                            <Text style={[styles.assignScore, { color: T.text3, paddingHorizontal: 2 }]}>/</Text>
+                            <Text style={[styles.assignScore, { color: T.text }]}>{ca.total}</Text>
                           </View>
                           <Text style={[styles.assignPct, { color: T.accent }]}>{(((parseFloat(ca.score)/parseFloat(ca.total))*100) || 0).toFixed(1)}%</Text>
-                        </View>
+                        </TouchableOpacity>
                       </View>
                     ))}
                     <TouchableOpacity 
@@ -426,7 +504,7 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
                   Alert.alert('Invalid Input', 'Please enter valid numbers for Target Grade and Total Points.');
                   return;
                 }
-                const currentPct = subject.pct;
+                const currentPct = isEdited ? overallRecalculatedPct : subject.pct;
                 const catInfo = detail.categories.find(c => c.name === (finalCat || detail.categories[0]?.name));
                 const catWeight = catInfo ? catInfo.weight / 100 : 0.2;
                 // Simple estimation formula
@@ -462,6 +540,65 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {/* Edit Assignment Modal */}
+      <Modal visible={!!editingAssignment} transparent={true} animationType="fade">
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', zIndex: 1000 }]}>
+           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setEditingAssignment(null)} />
+           <View style={{ backgroundColor: T.surface, padding: 24, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 48 }}>
+             <Text style={{ color: T.text, fontSize: 18, fontWeight: '600', marginBottom: 16 }} numberOfLines={2}>
+               {editingAssignment?.name}
+             </Text>
+             
+             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+               <View style={{ flex: 1 }}>
+                 <Text style={{ color: T.text3, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>Points Earned</Text>
+                 <TextInput
+                   style={{ backgroundColor: T.surface2, color: T.text, fontSize: 24, fontWeight: '700', padding: 16, borderRadius: 12, textAlign: 'center' }}
+                   keyboardType="numeric"
+                   value={editingAssignment?.score}
+                   onChangeText={(t) => setEditingAssignment(prev => prev ? {...prev, score: t} : null)}
+                   autoFocus
+                 />
+               </View>
+               <Text style={{ color: T.text3, fontSize: 24, marginTop: 16 }}>/</Text>
+               <View style={{ flex: 1 }}>
+                 <Text style={{ color: T.text3, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>Total Points</Text>
+                 <TextInput
+                   style={{ backgroundColor: T.surface2, color: T.text, fontSize: 24, fontWeight: '700', padding: 16, borderRadius: 12, textAlign: 'center' }}
+                   keyboardType="numeric"
+                   value={editingAssignment?.total}
+                   onChangeText={(t) => setEditingAssignment(prev => prev ? {...prev, total: t} : null)}
+                 />
+               </View>
+             </View>
+
+             <TouchableOpacity 
+               style={{ backgroundColor: T.accent, padding: 16, borderRadius: 12, alignItems: 'center' }}
+               onPress={() => {
+                 if (!editingAssignment) return;
+                 if (editingAssignment.isCustom && editingAssignment.catName !== undefined && editingAssignment.customIdx !== undefined) {
+                    const newArr = [...(customAssignments[editingAssignment.catName] || [])];
+                    newArr[editingAssignment.customIdx] = { 
+                      name: newArr[editingAssignment.customIdx].name,
+                      score: editingAssignment.score, 
+                      total: editingAssignment.total || '100'
+                    };
+                    setCustomAssignments(prev => ({...prev, [editingAssignment.catName!]: newArr}));
+                 } else {
+                    setEditedAssignments(prev => ({
+                      ...prev, 
+                      [editingAssignment.id]: { score: editingAssignment.score, total: editingAssignment.total || '100' }
+                    }));
+                 }
+                 setEditingAssignment(null);
+               }}
+             >
+               <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Save Score</Text>
+             </TouchableOpacity>
+           </View>
+        </View>
+      </Modal>
 
       <AISheet
         visible={aiVisible}
@@ -674,6 +811,11 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     marginTop: 1,
     fontVariant: ['tabular-nums'],
+  },
+  assignSep: {
+    fontSize: 11.5,
+    marginTop: 1,
+    paddingHorizontal: 2,
   },
   assignPct: {
     fontSize: 14,

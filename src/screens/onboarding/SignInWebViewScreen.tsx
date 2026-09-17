@@ -18,15 +18,20 @@ type Phase = 'awaiting' | 'capturing' | 'error';
 
 export function SignInWebViewScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
-  // District comes from DataContext (persisted across launches). Used both
-  // when the user just picked a district and when they're a returning user
-  // landing here directly via RootNavigator's initial-route logic.
   const district = useDistrict();
   const districtName = district?.name ?? '';
   const portalUrl = district?.portalUrl ?? '';
   const webRef = useRef<WebView>(null);
   const { setClient, mockLogin } = useData();
-  const captureLockRef = useRef(false); // prevent double capture on multiple rapid nav events
+  const captureLockRef = useRef(false);
+  const [silentAuth, setSilentAuth] = useState(true);
+
+  React.useEffect(() => {
+    // If the webview doesn't auto-redirect and authenticate via SSO cookies within 3.5 seconds,
+    // assume the session is truly dead and reveal the login screen to the user.
+    const timer = setTimeout(() => setSilentAuth(false), 3500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // RootNavigator's key-based remount destroys nav history when district
   // state changes. Result: this screen often has nothing to go back to
@@ -98,7 +103,7 @@ export function SignInWebViewScreen({ navigation }: Props) {
         </View>
 
         {/* Status strip */}
-        <View style={[styles.status, { backgroundColor: T.surface, borderColor: T.hairline }]}>
+        <View style={[styles.status, { backgroundColor: T.surface2 }]}>
           {phase === 'error'
             ? <View style={[styles.dot, { backgroundColor: T.good }]} />
             : <ActivityIndicator size="small" color={T.accent} />}
@@ -112,7 +117,7 @@ export function SignInWebViewScreen({ navigation }: Props) {
         </View>
 
         {/* WKWebView (iOS) / android.webkit.WebView (Android) */}
-        <View style={[styles.webWrap, { borderColor: T.hairline }]}>
+        <View style={[styles.webWrap, { backgroundColor: T.bg }]}>
           <WebView
             ref={webRef}
             source={{ uri: portalUrl }}
@@ -134,6 +139,12 @@ export function SignInWebViewScreen({ navigation }: Props) {
               setPhase('error');
             }}
           />
+          {silentAuth && (
+            <View style={[styles.silentOverlay, { backgroundColor: T.bg }]}>
+              <ActivityIndicator size="large" color={T.accent} />
+              <Text style={[styles.silentText, { color: T.text }]}>Resuming your session...</Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity activeOpacity={0.8} onPress={mockLogin} style={styles.demoBtn}>
@@ -165,7 +176,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 18, marginBottom: 10,
     paddingVertical: 10, paddingHorizontal: 12,
-    borderRadius: 12, borderWidth: 1,
+    borderRadius: 12,
   },
   statusText: { flex: 1, fontSize: 13, fontWeight: '500' },
   dot:        { width: 8, height: 8, borderRadius: 4 },
@@ -176,10 +187,17 @@ const styles = StyleSheet.create({
   lockText: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   webWrap: {
     flex: 1, marginHorizontal: 18, marginBottom: 10,
-    borderRadius: 16, borderWidth: 1, overflow: 'hidden',
+    borderRadius: 16, overflow: 'hidden',
   },
   loading:    { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   demoBtn:    { paddingVertical: 8, paddingHorizontal: 24, alignItems: 'center', marginBottom: 2 },
   demoBtnText:{ fontSize: 13, fontWeight: '600' },
   note:       { fontSize: 11, textAlign: 'center', paddingHorizontal: 24, paddingBottom: 16 },
+  silentOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center', zIndex: 10,
+  },
+  silentText: {
+    marginTop: 16, fontSize: 16, fontWeight: '600',
+  },
 });

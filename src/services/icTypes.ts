@@ -97,6 +97,7 @@ export interface RawGradesEnrollment {
   crossSiteEnrollment?: boolean;
   /** e.g. "25-26 [School Name]" — strip the YY-YY prefix to get the school name. */
   displayName: string;
+  startDate?: string | null;
   endDate: string | null;
   /** Grade level as a string, e.g. "10". */
   grade: string;

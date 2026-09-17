@@ -14,16 +14,31 @@ interface Props {
 
 export function ClassCard({ item, T, history, onPress }: Props) {
   const col = gradeColor(T, item.color);
-  const trendUp = item.trend > 0;
-  const trendFlat = item.trend === 0;
-  
   let sparkData = [
     item.pct - 1.4, item.pct - 1.0, item.pct - 0.7,
     item.pct - 0.3, item.pct - 0.1, item.pct,
   ];
+  let calculatedTrend = item.trend;
   if (history && history.length > 0) {
     sparkData = history.slice(-10).map(h => h.v);
+    
+    // Calculate 7-day trend
+    const sevenDaysAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
+    let referenceValue = history[0].v;
+    let minDiff = Infinity;
+    for (const h of history) {
+      const t = new Date(h.d).getTime();
+      const diff = Math.abs(t - sevenDaysAgo);
+      if (diff < minDiff) {
+        minDiff = diff;
+        referenceValue = h.v;
+      }
+    }
+    calculatedTrend = item.pct - referenceValue;
   }
+  
+  const trendUp = calculatedTrend > 0;
+  const trendFlat = calculatedTrend === 0 || Math.abs(calculatedTrend) < 0.01;
   const pctStr = item.pct % 1 === 0 ? `${item.pct}%` : `${item.pct.toFixed(2)}%`;
 
   return (
@@ -45,7 +60,7 @@ export function ClassCard({ item, T, history, onPress }: Props) {
       </View>
 
       <View style={styles.bottomRow}>
-        <Sparkline data={sparkData} color={col} width={80} height={26} />
+        <Sparkline data={sparkData} color={col} width={70} height={20} />
         <View style={[styles.trendBadge]}>
           {trendUp ? (
             <LIcon.Trend size={12} color={T.good} stroke={2.2} />
@@ -58,7 +73,7 @@ export function ClassCard({ item, T, history, onPress }: Props) {
             styles.trendText,
             { color: trendUp ? T.good : trendFlat ? T.text3 : T.bad, fontFamily: Fonts.mono },
           ]}>
-            {trendFlat ? '0.0%' : `${trendUp ? '+' : ''}${item.trend.toFixed(1)}%`}
+            {trendFlat ? '0.0%' : `${trendUp ? '+' : ''}${calculatedTrend.toFixed(1)}%`}
           </Text>
         </View>
         <View style={styles.spacer} />
@@ -75,26 +90,26 @@ export function ClassCard({ item, T, history, onPress }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 0.5,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 10,
   },
   nameCol: {
     flex: 1,
     minWidth: 0,
   },
   code: {
-    marginBottom: 4,
+    marginBottom: 2,
   },
   name: {
-    fontSize: 16.5,
+    fontSize: 16,
     fontWeight: '600',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   teacher: {
     fontSize: 12,
@@ -104,10 +119,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   gradeLetter: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
-    letterSpacing: -0.52,
-    lineHeight: 26,
+    letterSpacing: -0.48,
+    lineHeight: 24,
   },
   gradePct: {
     fontSize: 12.5,
@@ -117,8 +132,8 @@ const styles = StyleSheet.create({
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginTop: 14,
+    gap: 12,
+    marginTop: 10,
   },
   trendBadge: {
     flexDirection: 'row',

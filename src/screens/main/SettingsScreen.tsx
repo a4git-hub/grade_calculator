@@ -71,6 +71,7 @@ export function SettingsScreen() {
 
   const openChangeDistrict = () => rootNav.navigate('ChangeDistrict');
   const openPrivacy = () => rootNav.navigate('Privacy');
+  const openWebSync = () => rootNav.navigate('WebSync');
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -93,9 +94,9 @@ export function SettingsScreen() {
               <Text style={styles.avatarText}>{user?.initials ?? '?'}</Text>
             </LinearGradient>
             <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: T.text }]}>{user?.fullName ?? '—'}</Text>
+              <Text style={[styles.profileName, { color: T.text }]}>{user?.fullName ?? '-'}</Text>
               <Text style={[styles.profileSub, { color: T.text3 }]}>
-                {user?.school ?? '—'} · {user?.gradeLevel ?? '—'}th grade
+                {user?.school ?? '-'} · {user?.gradeLevel ?? '-'}th grade
               </Text>
               <View style={styles.profileMeta}>
                 <View style={[styles.syncedBadge, { backgroundColor: T.goodSoft }]}>
@@ -112,6 +113,16 @@ export function SettingsScreen() {
             <SettingsRow
               T={T} icon="Sparkle" title="Dark mode" sub="Automatic at sunset"
               right={<Toggle on={dark} onPress={toggleTheme} T={T} />} last
+            />
+          </SettingsGroup>
+
+          {/* Web Sync */}
+          <SettingsGroup title="Web Dashboard" T={T}>
+            <SettingsRow
+              T={T} icon="Laptop" title="Lumina Web Sync" sub="Scan QR code on your Chromebook"
+              right={<LIcon.Chevron size={14} color={T.text3} />}
+              onPress={openWebSync}
+              last
             />
           </SettingsGroup>
 
