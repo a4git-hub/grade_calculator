@@ -81,9 +81,11 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
 
     if (rawOrigPossible > 0) categoryIsActive = true;
 
+    let proxyPossible = rawOrigPossible > 0 ? (rawOrigPossible > 100 ? rawOrigPossible : 100) : 0;
     let newPct = cat.pct;
-    let finalEarnedPoints = rawOrigEarned;
-    let finalPossiblePoints = rawOrigPossible;
+    // If the API didn't give us the true points, we MUST preserve the known category percentage
+    let finalEarnedPoints = cat.pointsEarned !== undefined ? cat.pointsEarned : (proxyPossible > 0 ? (cat.pct / 100) * proxyPossible : 0);
+    let finalPossiblePoints = cat.pointsPossible !== undefined ? cat.pointsPossible : proxyPossible;
 
     if (categoryHasEdits) {
        let rawEditedEarned = 0;
@@ -130,14 +132,12 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
           newPct = 0;
        } else {
           categoryIsActive = true;
-          const rawOrigPct = rawOrigPossible > 0 ? (rawOrigEarned / rawOrigPossible) * 100 : 0;
-          const rawEditPct = rawEditedPossible > 0 ? (rawEditedEarned / rawEditedPossible) * 100 : 0;
-          const deltaPct = rawEditPct - rawOrigPct;
-
-          // If there were no original scores, just use the raw edited percentage. Otherwise, apply the delta.
-          newPct = rawOrigPossible > 0 ? Math.max(0, cat.pct + deltaPct) : rawEditPct;
-          finalEarnedPoints = rawEditedEarned;
-          finalPossiblePoints = rawEditedPossible;
+          const deltaEarned = rawEditedEarned - rawOrigEarned;
+          const deltaPossible = rawEditedPossible - rawOrigPossible;
+          finalEarnedPoints = Math.max(0, finalEarnedPoints + deltaEarned);
+          finalPossiblePoints = Math.max(0, finalPossiblePoints + deltaPossible);
+          
+          newPct = finalPossiblePoints > 0 ? (finalEarnedPoints / finalPossiblePoints) * 100 : 0;
        }
     }
 
@@ -609,6 +609,7 @@ export function SubjectDetailScreen({ navigation, route }: Props) {
         }}
         T={T}
         className={subject.name}
+        subjectPct={subject.pct}
       />
     </View>
   );
@@ -825,7 +826,7 @@ const styles = StyleSheet.create({
   aiFabWrap: {
     position: 'absolute',
     right: 18,
-    bottom: 32,
+    bottom: 96,
   },
   aiFab: {
     borderRadius: 28,

@@ -11,22 +11,24 @@ interface Prompt {
   sub: string;
 }
 
-const PROMPTS: Prompt[] = [
-  { icon: 'Trend',    title: 'Grade my trajectory',          sub: 'Where am I headed if nothing changes?' },
-  { icon: 'Calendar', title: 'Plan rest of semester',        sub: '4 weeks left · weekly study plan' },
-  { icon: 'Target',   title: 'What if I miss the next test?', sub: 'Ch 9 Test · Mon — impact preview' },
-  { icon: 'ArrowUp',  title: 'How do I get back to a B+?',   sub: 'Score targets for remaining work' },
-];
-
 interface Props {
   visible: boolean;
   onClose: () => void;
   onSelect: (prompt: string) => void;
   T: ThemeTokens;
   className: string;
+  subjectPct?: number;
 }
 
-export function AISheet({ visible, onClose, onSelect, T, className }: Props) {
+export function AISheet({ visible, onClose, onSelect, T, className, subjectPct = 85 }: Props) {
+  const nextGrade = subjectPct >= 90 ? 'A' : subjectPct >= 80 ? 'A-' : subjectPct >= 70 ? 'B' : 'C';
+
+  const PROMPTS: Prompt[] = [
+    { icon: 'Trend',    title: 'Grade my trajectory',          sub: 'Where am I headed if nothing changes?' },
+    { icon: 'Calendar', title: 'Plan rest of semester',        sub: 'Weekly study plan based on lowest category' },
+    { icon: 'Target',   title: 'What if I bomb my next assignment?', sub: 'Impact preview on my weakest category' },
+    { icon: 'ArrowUp',  title: `How do I get to an ${nextGrade}?`,   sub: 'Score targets for remaining work' },
+  ];
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>

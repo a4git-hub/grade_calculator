@@ -17,6 +17,8 @@ export interface Category {
   weight: number;
   pct: number;
   count: number;
+  pointsEarned?: number;
+  pointsPossible?: number;
 }
 
 export interface HistoryPoint {

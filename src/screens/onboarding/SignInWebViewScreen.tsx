@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, WebViewNavigation } from 'react-native-webview';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
@@ -15,6 +16,18 @@ import { captureIcClient, isPostLoginUrl } from '../../hooks/useIcAuth';
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'SignInWebView'>;
 
 type Phase = 'awaiting' | 'capturing' | 'error';
+
+const INJECTED_JS = `
+  setTimeout(function() {
+    try {
+      var nameEl = document.querySelector('.user-name, .student-name, .profile-name, [class*="userName"]');
+      if (nameEl && nameEl.innerText) {
+        window.ReactNativeWebView.postMessage(nameEl.innerText.trim());
+      }
+    } catch (e) {}
+  }, 2500);
+  true;
+`;
 
 export function SignInWebViewScreen({ navigation }: Props) {
   const { T, dark } = useTheme();
@@ -128,6 +141,14 @@ export function SignInWebViewScreen({ navigation }: Props) {
             domStorageEnabled
             incognito={false}
             allowsInlineMediaPlayback
+            injectedJavaScript={INJECTED_JS}
+            onMessage={async (event) => {
+              const scrapedName = event.nativeEvent.data;
+              if (scrapedName && scrapedName.length > 0 && scrapedName.length < 30) {
+                const firstName = scrapedName.split(' ')[0];
+                await AsyncStorage.setItem('lumina_scraped_firstname', firstName);
+              }
+            }}
             onNavigationStateChange={onNav}
             startInLoadingState
             renderLoading={() => (

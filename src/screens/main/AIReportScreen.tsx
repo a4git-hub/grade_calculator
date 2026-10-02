@@ -6,7 +6,7 @@ import { ClassesStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { monoStyle } from '../../tokens';
 import { LIcon } from '../../components/LIcon';
-import { useClasses } from '../../context/DataContext';
+import { useClasses, useData } from '../../context/DataContext';
 
 type Props = NativeStackScreenProps<ClassesStackParamList, 'AIReport'>;
 
@@ -71,10 +71,12 @@ function PlanWeek({ T, week, items, target, last }: {
 export function AIReportScreen({ navigation, route }: Props) {
   const { T, dark } = useTheme();
   const classes = useClasses();
+  const { subjectDetails } = useData();
   const subject = classes.find(c => c.id === route.params.classId);
+  const detail = subject ? subjectDetails[subject.id] : null;
   const backLabel = subject?.name ?? 'Class';
 
-  if (!subject) {
+  if (!subject || !detail) {
     return (
       <View style={[styles.root, { backgroundColor: T.bg }]}>
         <SafeAreaView style={styles.safe} edges={['top']}>
@@ -85,12 +87,56 @@ export function AIReportScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           </View>
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={[styles.headlineSub, { color: T.text2 }]}>Class not found.</Text>
+            <Text style={[styles.headlineSub, { color: T.text2 }]}>Class data not found.</Text>
           </View>
         </SafeAreaView>
       </View>
     );
   }
+
+  const isUpward = subject.trend > 0;
+  
+  // Find categories
+  const activeCategories = detail.categories.filter(c => c.count > 0);
+  const worstCategory = activeCategories.length > 0 ? [...activeCategories].sort((a,b) => a.pct - b.pct)[0] : null;
+  const bestCategory = activeCategories.length > 0 ? [...activeCategories].sort((a,b) => b.pct - a.pct)[0] : null;
+
+  // Find lowest assignments
+  const gradedAssignments = detail.assignments.filter(a => a.earned !== undefined && a.possible !== undefined && a.possible > 0);
+  const worstAssignments = [...gradedAssignments].sort((a,b) => {
+    const aPct = (a.earned! / a.possible!);
+    const bPct = (b.earned! / b.possible!);
+    return aPct - bPct;
+  }).slice(0, 3);
+
+  const promptTitle = route.params.promptTitle || '';
+
+  // Generate Headline
+  let headline = `Your grade is stable.`;
+  if (promptTitle.includes('trajectory')) {
+     headline = isUpward ? "You are on a strong upward trajectory." : "Your recent trajectory is slipping down.";
+  } else if (promptTitle.includes('bomb')) {
+     headline = worstCategory ? `A bad score in ${worstCategory.name} will heavily drop your grade.` : `A bad score will negatively impact your grade.`;
+  } else if (promptTitle.includes('How do I get')) {
+     headline = `Focus on your weakest categories to reach the next level.`;
+  } else if (worstCategory) {
+     headline = `Your ${worstCategory.name} category is dragging down your grade.`;
+     if (isUpward) {
+        headline = `You're trending up! Focus on ${worstCategory.name} to boost it further.`;
+     }
+  }
+
+  const totalAssn = detail.assignments.length;
+  const headlineSub = `Based on ${totalAssn} total assignments · Real-time algorithmic analysis.`;
+
+  // Performance Section Title
+  const perfTitle = bestCategory && worstCategory 
+    ? `${bestCategory.name} is doing the work. ${worstCategory.name} isn't.` 
+    : 'Category Breakdown';
+
+  // Plan logic
+  const nextGrade = subject.pct >= 90 ? 'A' : subject.pct >= 80 ? 'A-' : subject.pct >= 70 ? 'B' : 'C';
+  const planTarget = Math.ceil(subject.pct) + 1;
 
   return (
     <View style={[styles.root, { backgroundColor: T.bg }]}>
@@ -100,7 +146,7 @@ export function AIReportScreen({ navigation, route }: Props) {
             <LIcon.ChevronLeft size={18} color={T.ink} stroke={2.4} />
             <Text style={[styles.backText, { color: T.ink }]} numberOfLines={1}>{backLabel}</Text>
           </TouchableOpacity>
-          <Text style={[monoStyle(T)]}>Generated · 2:41 PM</Text>
+          <Text style={[monoStyle(T)]}>Generated · Just now</Text>
         </View>
 
         <ScrollView
@@ -115,55 +161,65 @@ export function AIReportScreen({ navigation, route }: Props) {
               <Text style={[monoStyle(T), { color: T.accent }]}>Lumina assessment</Text>
             </View>
             <Text style={[styles.headline, { color: T.text }]}>
-              You can hold a B- if you stop bleeding HW points.
+              {headline}
             </Text>
             <Text style={[styles.headlineSub, { color: T.text2 }]}>
-              Based on 18 HW, 4 tests, and 6 quizzes from Term S2 · 4 weeks remaining.
+              {headlineSub}
             </Text>
           </View>
 
           {/* 01 Performance */}
           <ReportSection T={T} kicker="01 · Performance"
-                         title="Tests are doing the work. Homework isn't." color={T.ink}>
-            <ReportRow T={T} label="Tests (60%)"    value="78.4%" sub="2 of 4 above class avg" pos="warn" />
-            <ReportRow T={T} label="Homework (30%)" value="84.2%" sub="3 zeros + 4 low scores" pos="warn" />
-            <ReportRow T={T} label="Quizzes (10%)"  value="92.0%" sub="strongest category"     pos="good" />
+                         title={perfTitle} color={T.ink}>
+            {activeCategories.map((cat, i) => (
+              <ReportRow 
+                key={i} 
+                T={T} 
+                label={`${cat.name} (${cat.weight > 0 ? cat.weight + '%' : 'pts'})`}    
+                value={`${cat.pct}%`} 
+                sub={`${cat.count} items`} 
+                pos={cat.pct >= subject.pct ? 'good' : 'warn'} 
+              />
+            ))}
+            {activeCategories.length === 0 && <Text style={{ color: T.text2, paddingVertical: 12 }}>No categories available.</Text>}
           </ReportSection>
 
           {/* 02 Risks */}
           <ReportSection T={T} kicker="02 · Risks"
-                         title="Three things will pull this down." color={T.warn}>
-            <ReportBullet T={T} sev="bad"  text="Le Chatelier practice (CHM) is missing — drops 0.6%." />
-            <ReportBullet T={T} sev="warn" text="Ch 9 Test on Mon — last test was 69.8%. Below 65 puts you at C+." />
-            <ReportBullet T={T} sev="warn" text="HW pattern: scores drop on every 5th, 6th, 8th HW. Look at sleep/timing." />
+                         title="Three things pulling this down." color={T.warn}>
+            {worstAssignments.map((a, i) => {
+               const pct = Math.round((a.earned! / a.possible!) * 100);
+               return (
+                 <ReportBullet 
+                   key={i} 
+                   T={T} 
+                   sev={pct < 60 ? 'bad' : 'warn'}  
+                   text={`${a.name} (${a.cat}) was scored ${a.earned}/${a.possible} (${pct}%).`} 
+                 />
+               );
+            })}
+            {worstAssignments.length === 0 && <ReportBullet T={T} sev="good" text="No major risks detected! Keep it up." />}
           </ReportSection>
 
           {/* 03 Plan */}
-          <ReportSection T={T} kicker="03 · Plan · 4 weeks"
-                         title="A weekly target that gets you to 84%." color={T.accent}>
-            <PlanWeek T={T} week="Apr 28 – May 4"
-                      items={['Submit 5.3 HW retake (Mon)', 'Ch 9 Test ≥ 80%', 'Office hrs · Wed']}
-                      target="82.5" />
-            <PlanWeek T={T} week="May 5 – May 11"
-                      items={['HW 9.1–9.4 · all ≥ 90%', 'Catch-up: Le Chatelier (CHM)']}
-                      target="83.4" />
-            <PlanWeek T={T} week="May 12 – May 18"
-                      items={['Quiz 9.5 ≥ 95%', 'Practice test on Sun']}
-                      target="83.8" />
-            <PlanWeek T={T} week="May 19 – Final"
-                      items={['Final ≥ 80% locks B-', '≥ 88% upgrades to B']}
-                      target="84.2" last />
+          <ReportSection T={T} kicker="03 · Plan"
+                         title={`A target that gets you to ${nextGrade}.`} color={T.accent}>
+            <PlanWeek T={T} week="This Week"
+                      items={worstCategory ? [`Review mistakes in ${worstCategory.name}`, `Ask teacher for help on ${worstCategory.name}`, `Maintain strong scores in ${bestCategory?.name ?? 'other categories'}`] : ['Keep up the good work!']}
+                      target={planTarget.toFixed(1)} last />
           </ReportSection>
 
           {/* Actions */}
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.btnOutline, { borderColor: T.hairline2 }]}
+              onPress={() => navigation.goBack()}
             >
               <Text style={[styles.btnOutlineText, { color: T.text }]}>Save plan</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btnFill, { backgroundColor: T.accent }]}
+              onPress={() => navigation.goBack()}
             >
               <Text style={[styles.btnFillText, { color: dark ? '#04181B' : '#fff' }]}>Open What-If</Text>
               <LIcon.Arrow size={14} color={dark ? '#04181B' : '#fff'} stroke={2.4} />

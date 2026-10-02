@@ -377,6 +377,8 @@ export function enrichCategoriesWithDetail(
         ? Math.round(pct * 100) / 100
         : b.pct,
       count: count > 0 ? count : b.count,
+      pointsEarned: dc.progress?.progressPointsEarned,
+      pointsPossible: dc.progress?.progressTotalPoints,
     };
   });
 }
@@ -407,6 +409,8 @@ export function categoriesFromDetail(
           ? Math.round(pct * 100) / 100
           : 0,
         count: Array.isArray(dc.assignments) ? dc.assignments.length : 0,
+        pointsEarned: dc.progress?.progressPointsEarned,
+        pointsPossible: dc.progress?.progressTotalPoints,
       };
     });
 }

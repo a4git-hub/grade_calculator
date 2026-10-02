@@ -59,7 +59,7 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <Text style={[styles.headline, { color: T.text }]}>
-            Hey {user?.firstName ?? 'there'}.
+            {user?.firstName ? `Hey ${user.firstName}.` : 'Hey there.'}
           </Text>
           <Text style={[styles.headlineSub, { color: T.text2 }]}>
             {summary}

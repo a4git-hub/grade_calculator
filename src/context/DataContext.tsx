@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ClassItem, SubjectDetail, AttentionGroup } from '../types';
 import type { UserProfile } from '../services/icTypes';
 import { IcClient } from '../services/icClient';
@@ -106,7 +107,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setState(s => ({ ...s, syncStep: 'user', syncError: null }));
     try {
-      const userRaw = await client.getUserAccount();
+      let userRaw;
+      try {
+        userRaw = await client.getUserAccount();
+      } catch (e: any) {
+        let scrapedName = '';
+        try {
+          scrapedName = await AsyncStorage.getItem('lumina_scraped_firstname') || '';
+        } catch (e) {}
+        
+        userRaw = {
+          firstName: scrapedName,
+          lastName: '',
+          personID: 0,
+          username: 'student',
+          _id: '',
+          userID: 0,
+          currentIdentityID: 0,
+          isSAMLAccount: false,
+          homepage: '',
+          active: true,
+          hasEmail: false,
+        } as any;
+        console.warn('[DataContext] getUserAccount failed, using fallback:', e.message);
+      }
       setState(s => ({ ...s, syncStep: 'grades' }));
       const gradesRaw = await client.getGrades();
       setState(s => ({ ...s, syncStep: 'attention' }));
